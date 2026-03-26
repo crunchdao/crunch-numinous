@@ -90,24 +90,18 @@ class TrackerBase:
             self._latest_data_by_subject.get("_default"),
         )
 
-    def predict(
-        self, subject: str, resolve_horizon_seconds: int, step_seconds: int
-    ) -> dict[str, Any]:
+    def predict(self, subject: str) -> dict[str, Any]:
         """Return a forecast for the given event.
 
         Args:
             subject: Event identifier (e.g. event_id or scope subject).
-            resolve_horizon_seconds: Time until resolution (seconds).
-            step_seconds: Time step between predictions (seconds).
 
         Returns:
             Dict matching ``ForecastOutput`` fields::
 
                 {"event_id": str, "prediction": float}
-
-            Where prediction is a probability between 0.0 and 1.0.
         """
-        result = self._predict(subject, resolve_horizon_seconds, step_seconds)
+        result = self._predict(subject)
         data = self._get_data(subject)
         if isinstance(data, dict):
             metadata = data.get("metadata") or {}
@@ -116,16 +110,13 @@ class TrackerBase:
             else:
                 result["market_type"] = ""
         logger.info(
-            "[%s] predict subject=%s horizon=%ds → %s",
+            "[%s] predict subject=%s → %s",
             self._model_name,
             subject,
-            resolve_horizon_seconds,
             result,
         )
         return result
 
-    def _predict(
-        self, subject: str, resolve_horizon_seconds: int, step_seconds: int
-    ) -> dict[str, Any]:
+    def _predict(self, subject: str) -> dict[str, Any]:
         """Override this in your model. See ``predict()`` for docs."""
         raise NotImplementedError("Implement _predict() or predict() in your model")
