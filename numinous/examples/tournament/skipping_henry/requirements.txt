@@ -1,3 +1,0 @@
-crunch-numinous
-httpx
-numpy
