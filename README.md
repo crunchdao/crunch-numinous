@@ -129,6 +129,66 @@ print(result)  # {"event_id": "abc", "prediction": 0.65}
 
 See [`numinous/examples/`](numinous/examples/) for full implementations.
 
+## Gateway
+
+Your model has **no direct internet access** in production. All external calls (LLMs, search, OSINT...) must go through the **gateway**, a local proxy to multiple AI providers.
+
+- **In production**: `SANDBOX_PROXY_URL` is set automatically and points to the Crunch gateway — **API costs are covered by Crunch**.
+- **Locally**: you run the gateway yourself with your own API keys. Most providers offer a free tier.
+
+### Start the gateway locally
+
+```bash
+crunch-numinous gateway restart
+```
+
+### API keys
+
+API keys are **only needed for local testing** — do not include them in the notebook you submit.
+
+You can set them in two ways:
+
+**Option 1** — Environment variables (e.g. in a notebook cell you won't submit):
+```python
+import os
+os.environ["OPENAI_API_KEY"] = "sk-..."
+os.environ["OPENROUTER_API_KEY"] = "sk-or-..."
+```
+
+**Option 2** — A persistent env file that you never submit:
+```
+# ~/.crunch-numinous-gateway.env
+OPENAI_API_KEY=sk-...
+OPENROUTER_API_KEY=sk-or-...
+CHUTES_API_KEY=...
+```
+
+You can also create it interactively:
+```bash
+crunch-numinous gateway configure
+```
+
+### Use the gateway in your tracker
+
+In your model, call the gateway via `SANDBOX_PROXY_URL`:
+```python
+import os, httpx, uuid
+
+GATEWAY_URL = os.environ.get("SANDBOX_PROXY_URL", "http://localhost:8090")
+
+resp = httpx.post(
+    f"{GATEWAY_URL}/api/gateway/openai/responses",
+    json={
+        "run_id": str(uuid.uuid4()),
+        "model": "gpt-5-nano",
+        "input": [{"role": "user", "content": "Will BTC hit 100k?"}],
+    },
+    timeout=30.0,
+)
+```
+
+See the [API Reference](numinous/gateway/API_REFERENCE.md) for all available endpoints and providers.
+
 ## Links
 
 - [Numinous Website](https://numinouslabs.io/)

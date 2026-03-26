@@ -1,0 +1,1596 @@
+# Gateway API Reference
+
+> Adapted from [numinouslabs/numinous docs/gateway-guide.md](https://github.com/numinouslabs/numinous/blob/main/docs/gateway-guide.md).
+> For model and endpoint pricing see [PRICING.md](PRICING.md). For allow list and rate limit config see [.env.example](.env.example).
+
+## Overview
+
+The Gateway API provides models with access to external LLM and data services. Models run in isolated Docker containers without internet access, and the gateway acts as a controlled proxy. The gateway handles authentication — models never see API keys.
+
+**Available Services:**
+- **Chutes AI**: LLM inference with multiple open-source models
+- **Desearch AI**: Web search, social media search, and content crawling
+- **OpenAI**: GPT-5 series models with built-in web search
+- **Perplexity**: Reasoning LLMs with built-in web search
+- **Vericore**: Statement verification with evidence-based metrics
+- **OpenRouter**: Model router with access to hundreds of LLM models (Claude, Gemini, Llama, etc.)
+- **Numinous Indicia**: Geopolitical and OSINT signals intelligence (X/Twitter, LiveUAMap)
+
+All requests are cached in-memory (SHA-256 hash of endpoint + params).
+
+**Access Control:**
+- Model allow lists per provider (`ALLOWED_MODELS_<PROVIDER>`)
+- Endpoint allow lists for data providers (`ALLOWED_ENDPOINTS_<PROVIDER>`)
+- Per-IP rate limiting (`RATE_LIMIT_PER_SECOND`, `RATE_LIMIT_BURST`)
+
+**Security:** API keys are configured on the gateway server via env vars and never exposed to models.
+
+---
+
+## Authentication
+
+### Environment Variables
+
+Your agent receives these environment variables in the sandbox:
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SANDBOX_PROXY_URL` | Gateway proxy URL | `http://sandbox_proxy` |
+
+### Request Requirements
+
+All gateway requests must:
+1. Use `SANDBOX_PROXY_URL` as the base URL
+2. Not include any API keys (the gateway handles authentication)
+
+**Example:**
+```python
+import os
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL", "http://sandbox_proxy")
+```
+
+---
+
+## Chutes AI Endpoints
+
+Chutes AI provides access to open-source LLM models for inference.
+
+### POST /api/gateway/chutes/chat/completions
+
+OpenAI-compatible chat completion endpoint.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/chutes/chat/completions`
+
+**Request Body:**
+```json
+{
+  "model": "deepseek-ai/DeepSeek-V3-0324",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is the capital of France?"}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 1000,
+  "tools": null,
+  "tool_choice": null
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `model` | string | Yes | - | Model identifier (see Available Models below) |
+| `messages` | array | Yes | - | List of message objects with `role` and `content` |
+| `temperature` | float | No | 0.7 | Sampling temperature (0.0-2.0) |
+| `max_tokens` | integer | No | null | Maximum tokens to generate |
+| `tools` | array | No | null | Tool definitions for function calling |
+| `tool_choice` | string/object | No | null | Tool selection strategy (`auto`, `required`, or specific tool) |
+
+**Response:**
+```json
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "deepseek-ai/DeepSeek-V3-0324",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The capital of France is Paris."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 28,
+    "completion_tokens": 8,
+    "total_tokens": 36
+  }
+}
+```
+
+**Example (using LangChain):**
+```python
+import os
+from langchain_openai import ChatOpenAI
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL", "http://sandbox_proxy")
+
+llm = ChatOpenAI(
+    model="deepseek-ai/DeepSeek-V3-0324",
+    base_url=f"{PROXY_URL}/api/gateway/chutes",
+    api_key="not-needed",  # Gateway handles authentication
+)
+
+response = llm.invoke("What is 2+2?")
+print(response.content)
+```
+
+**Example (using httpx):**
+```python
+import os
+import httpx
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL")
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/chutes/chat/completions",
+    json={
+        "model": "deepseek-ai/DeepSeek-V3-0324",
+        "messages": [{"role": "user", "content": "Hello!"}],
+        "temperature": 0.7,
+    },
+    timeout=60.0,
+)
+
+result = response.json()
+content = result["choices"][0]["message"]["content"]
+```
+
+**Available Models:**
+
+| Model | Identifier | Notes |
+|-------|-----------|-------|
+| DeepSeek R1 | `deepseek-ai/DeepSeek-R1` | Latest reasoning model |
+| DeepSeek R1 0528 | `deepseek-ai/DeepSeek-R1-0528` | Version-specific |
+| DeepSeek V3 0324 | `deepseek-ai/DeepSeek-V3-0324` | Fast and efficient |
+| DeepSeek V3.1 | `deepseek-ai/DeepSeek-V3.1` | Improved version |
+| DeepSeek V3.2 Exp | `deepseek-ai/DeepSeek-V3.2-Exp` | Experimental |
+| Gemma 3 4B | `unsloth/gemma-3-4b-it` | Lightweight model |
+| Gemma 3 12B | `unsloth/gemma-3-12b-it` | Mid-size model |
+| Gemma 3 27B | `unsloth/gemma-3-27b-it` | Larger model |
+| GLM 4.5 | `zai-org/GLM-4.5` | Multilingual model |
+| GLM 4.6 | `zai-org/GLM-4.6` | Latest GLM version |
+| Qwen3 32B | `Qwen/Qwen3-32B` | High-performance model |
+| Qwen3 235B | `Qwen/Qwen3-235B-A22B` | Large-scale model |
+| Mistral Small 24B | `unsloth/Mistral-Small-24B-Instruct-2501` | Efficient instruction model |
+| GPT OSS 20B | `openai/gpt-oss-20b` | Open-source GPT variant |
+| GPT OSS 120B | `openai/gpt-oss-120b` | Large open-source GPT |
+
+**Note:** Model availability can change. Check https://chutes.ai/app for the latest list of active models.
+
+**Error Handling:**
+
+| Status Code | Description | Recommended Action |
+|-------------|-------------|-------------------|
+| 503 | Service Unavailable (cold model) | Implement exponential backoff, retry after 2-8s |
+| 404 | Model not found | Verify model name at https://chutes.ai/app |
+| 429 | Rate limit exceeded | Implement exponential backoff |
+| 401 | Authentication failed | Contact validator (gateway misconfigured) |
+| 500 | Internal server error | Retry with fallback to baseline prediction |
+
+### GET /api/gateway/chutes/status
+
+Get real-time status and utilization metrics for all Chutes models.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/chutes/status`
+
+**Request:**
+```python
+import httpx
+
+response = httpx.get(
+    f"{PROXY_URL}/api/gateway/chutes/status",
+    timeout=10.0,
+)
+status_list = response.json()
+```
+
+**Response:**
+```json
+[
+  {
+    "chute_id": "chute-123",
+    "name": "deepseek-ai/DeepSeek-R1",
+    "timestamp": "2025-11-13T12:00:00Z",
+    "utilization_current": 0.85,
+    "utilization_5m": 0.75,
+    "utilization_15m": 0.70,
+    "utilization_1h": 0.65,
+    "rate_limit_ratio_5m": 0.1,
+    "rate_limit_ratio_15m": 0.08,
+    "rate_limit_ratio_1h": 0.05,
+    "total_requests_5m": 100.0,
+    "completed_requests_5m": 90.0,
+    "rate_limited_requests_5m": 10.0,
+    "instance_count": 5,
+    "action_taken": "scale_up",
+    "scalable": true
+  }
+]
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `chute_id` | string | Unique chute identifier |
+| `name` | string | Model name |
+| `utilization_current` | float | Current utilization (0.0-1.0) |
+| `utilization_5m` | float | 5-minute average utilization |
+| `utilization_15m` | float | 15-minute average utilization |
+| `utilization_1h` | float | 1-hour average utilization |
+| `rate_limit_ratio_5m` | float | Ratio of rate-limited requests (5min) |
+| `instance_count` | integer | Active instances |
+| `action_taken` | string | Latest scaling action (`scale_up`, `scale_down`, `none`) |
+| `scalable` | boolean | Whether model can scale |
+
+**Use Case:**
+
+Use this endpoint to select the most available model before making inference requests:
+
+```python
+import httpx
+
+def select_best_model():
+    response = httpx.get(f"{PROXY_URL}/api/gateway/chutes/status", timeout=10.0)
+    status_list = response.json()
+
+    # Filter for low utilization and low rate limiting
+    available_models = [
+        s for s in status_list
+        if s["utilization_current"] < 0.5 and s["rate_limit_ratio_5m"] < 0.1
+    ]
+
+    if available_models:
+        # Pick the least utilized model
+        best = min(available_models, key=lambda x: x["utilization_current"])
+        return best["name"]
+
+    # Fallback to default
+    return "deepseek-ai/DeepSeek-V3-0324"
+```
+
+---
+
+## Desearch AI Endpoints
+
+Desearch AI provides web search, social media search, and content crawling capabilities.
+
+### POST /api/gateway/desearch/ai/search
+
+AI-powered search with automatic summarization and multiple tool support.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/desearch/ai/search`
+
+**Request Body:**
+```json
+{
+"prompt": "Latest developments in quantum computing",
+  "model": "NOVA",
+  "tools": ["web", "arxiv"],
+  "date_filter": "PAST_WEEK",
+  "result_type": "LINKS_WITH_FINAL_SUMMARY",
+  "system_message": null,
+  "count": 10
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `prompt` | string | Yes | - | Search query or question |
+| `model` | string | No | `NOVA` | AI model (`NOVA`, `ORBIT`, `HORIZON`) |
+| `tools` | array[string] | No | `["web"]` | Search tools to use (see Available Tools) |
+| `date_filter` | string | No | null | Time range filter (see Date Filters) |
+| `result_type` | string | No | null | Output format (see Result Types) |
+| `system_message` | string | No | null | Custom system prompt for AI |
+| `count` | integer | No | 10 | Number of results (1-100) |
+
+**Available Tools:**
+
+| Tool | Description |
+|------|-------------|
+| `web` | General web search |
+| `twitter` | Twitter/X search |
+| `reddit` | Reddit search |
+| `hackernews` | Hacker News search |
+| `wikipedia` | Wikipedia search |
+| `youtube` | YouTube search |
+| `arxiv` | Academic papers (arXiv) |
+
+**Date Filters:**
+
+| Value | Description |
+|-------|-------------|
+| `PAST_24_HOURS` | Last 24 hours |
+| `PAST_2_DAYS` | Last 2 days |
+| `PAST_WEEK` | Last 7 days |
+| `PAST_2_WEEKS` | Last 14 days |
+| `PAST_MONTH` | Last 30 days |
+| `PAST_2_MONTHS` | Last 60 days |
+| `PAST_YEAR` | Last 365 days |
+| `PAST_2_YEARS` | Last 2 years |
+
+**Result Types:**
+
+| Value | Description |
+|-------|-------------|
+| `ONLY_LINKS` | Return only search result links |
+| `LINKS_WITH_SUMMARIES` | Return links with individual summaries |
+| `LINKS_WITH_FINAL_SUMMARY` | Return links with one aggregated summary |
+
+**Response:**
+```json
+{
+  "text": "Search results text...",
+  "completion": "AI-generated summary based on search results...",
+  "wikipedia_search": [],
+  "youtube_search": [],
+  "arxiv_search": [
+    {
+      "title": "Paper title",
+      "url": "https://arxiv.org/abs/...",
+      "summary": "Paper abstract..."
+    }
+  ],
+  "reddit_search": [],
+  "hacker_news_search": [],
+  "tweets": [],
+  "miner_link_scores": {}
+}
+```
+
+**Example:**
+```python
+import os
+import httpx
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL")
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/desearch/ai/search",
+    json={
+        "prompt": "What are experts saying about AI safety?",
+        "model": "NOVA",
+        "tools": ["web", "twitter", "reddit"],
+        "date_filter": "PAST_WEEK",
+        "count": 15,
+    },
+    timeout=60.0,
+)
+
+result = response.json()
+summary = result.get("completion", "")
+tweets = result.get("tweets", [])
+```
+
+### POST /api/gateway/desearch/ai/links
+
+Get search result links without summaries (faster than AI search).
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/desearch/ai/links`
+
+**Request Body:**
+```json
+{
+"prompt": "Climate change policy updates",
+  "model": "NOVA",
+  "tools": ["web", "wikipedia"],
+  "count": 20
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `prompt` | string | Yes | - | Search query |
+| `model` | string | No | `NOVA` | AI model |
+| `tools` | array[string] | No | `["web"]` | Search tools (web, wikipedia, reddit, etc.) |
+| `count` | integer | No | 10 | Number of links (1-100) |
+
+**Response:**
+```json
+{
+  "search_results": [
+    {
+      "title": "Result title",
+      "url": "https://example.com",
+      "snippet": "Preview text..."
+    }
+  ],
+  "wikipedia_search_results": [],
+  "youtube_search_results": [],
+  "arxiv_search_results": [],
+  "reddit_search_results": [],
+  "hacker_news_search_results": []
+}
+```
+
+**Example:**
+```python
+import httpx
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/desearch/ai/links",
+    json={
+        "prompt": "US inflation data 2025",
+        "tools": ["web"],
+        "count": 10,
+    },
+    timeout=30.0,
+)
+
+links = response.json().get("search_results", [])
+for link in links[:5]:
+    print(f"{link['title']}: {link['url']}")
+```
+
+### POST /api/gateway/desearch/web/search
+
+Raw web search without AI processing (fastest option).
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/desearch/web/search`
+
+**Request Body:**
+```json
+{
+"query": "bitcoin price prediction",
+  "num": 10,
+  "start": 0
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `query` | string | Yes | - | Search query string |
+| `num` | integer | No | 10 | Number of results (1-100) |
+| `start` | integer | No | 0 | Pagination offset |
+
+**Response:**
+```json
+{
+  "data": [
+    {
+      "title": "Page title",
+      "link": "https://example.com/page",
+      "snippet": "Page description or excerpt...",
+      "date": "2025-11-10"
+    }
+  ]
+}
+```
+
+**Example:**
+```python
+import httpx
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/desearch/web/search",
+    json={
+        "query": "federal reserve interest rate decision",
+        "num": 20,
+        "start": 0,
+    },
+    timeout=30.0,
+)
+
+results = response.json()["data"]
+for result in results:
+    print(f"{result['title']}: {result['link']}")
+```
+
+### POST /api/gateway/desearch/web/crawl
+
+Fetch and extract content from a specific URL.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/desearch/web/crawl`
+
+**Request Body:**
+```json
+{
+"url": "https://example.com/article"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `url` | string | Yes | Full URL to crawl |
+
+**Response:**
+```json
+{
+  "url": "https://example.com/article",
+  "content": "Extracted text content from the page..."
+}
+```
+
+**Example:**
+```python
+import httpx
+
+# First, search for relevant URLs
+search_response = httpx.post(
+    f"{PROXY_URL}/api/gateway/desearch/web/search",
+    json={"query": "climate summit outcomes", "num": 5},
+    timeout=30.0,
+)
+urls = [r["link"] for r in search_response.json()["data"]]
+
+# Then, crawl each URL for full content
+for url in urls[:3]:
+    crawl_response = httpx.post(
+        f"{PROXY_URL}/api/gateway/desearch/web/crawl",
+        json={"url": url},
+        timeout=30.0,
+    )
+    content = crawl_response.json()["content"]
+    # Analyze content...
+```
+
+### POST /api/gateway/desearch/x/search
+
+Search for posts on X (Twitter) with advanced filtering options.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/desearch/x/search`
+
+**Request Body:**
+```json
+{
+"query": "AI safety",
+  "sort": "Top",
+  "count": 20,
+  "min_likes": 100,
+  "verified": true
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `query` | string | Yes | - | Search query for X posts |
+| `sort` | string | No | `Top` | Sort order (`Top` or `Latest`) |
+| `user` | string | No | null | Filter by username |
+| `start_date` | string (ISO 8601) | No | null | Filter posts after this date |
+| `end_date` | string (ISO 8601) | No | null | Filter posts before this date |
+| `lang` | string | No | null | Filter by language code (e.g., `en`) |
+| `verified` | boolean | No | null | Filter by verified status |
+| `blue_verified` | boolean | No | null | Filter by blue verified status |
+| `is_quote` | boolean | No | null | Filter for quote tweets |
+| `is_video` | boolean | No | null | Filter for posts with video |
+| `is_image` | boolean | No | null | Filter for posts with images |
+| `min_retweets` | integer | No | null | Minimum retweet count |
+| `min_replies` | integer | No | null | Minimum reply count |
+| `min_likes` | integer | No | null | Minimum like count |
+| `count` | integer | No | 20 | Number of posts to return |
+
+**Response:**
+```json
+{
+  "posts": [
+    {
+      "id": "1234567890",
+      "text": "Post content here...",
+      "url": "https://x.com/user/status/1234567890",
+      "created_at": "2025-01-06T12:00:00Z",
+      "reply_count": 10,
+      "retweet_count": 50,
+      "like_count": 200,
+      "view_count": 5000,
+      "quote_count": 5,
+      "bookmark_count": 15,
+      "is_quote_tweet": false,
+      "is_retweet": false,
+      "lang": "en",
+      "conversation_id": "1234567890",
+      "media": []
+    }
+  ],
+  "cost": 0.003
+}
+```
+
+**Note:** Each post may include additional optional fields such as `in_reply_to_screen_name`, `in_reply_to_status_id`, `in_reply_to_user_id`, `quoted_status_id`, `replies`, and `display_text_range`.
+
+**Example:**
+```python
+import httpx
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/desearch/x/search",
+    json={
+        "query": "quantum computing breakthrough",
+        "sort": "Latest",
+        "min_likes": 50,
+        "count": 10,
+    },
+    timeout=30.0,
+)
+
+posts = response.json()["posts"]
+for post in posts:
+    print(f"{post['text'][:100]}... - {post['like_count']} likes")
+```
+
+### POST /api/gateway/desearch/x/post
+
+Fetch detailed information about a specific X (Twitter) post by ID.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/desearch/x/post`
+
+**Request Body:**
+```json
+{
+"post_id": "1234567890"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `post_id` | string | Yes | The X post ID to fetch |
+
+**Response:**
+```json
+{
+  "user": {
+    "id": "123456",
+    "username": "exampleuser",
+    "name": "Example User",
+    "url": "https://x.com/exampleuser",
+    "created_at": "2020-01-01T00:00:00Z",
+    "description": "User bio...",
+    "followers_count": 10000,
+    "favourites_count": 5000,
+    "listed_count": 100,
+    "media_count": 200,
+    "statuses_count": 5000,
+    "verified": true,
+    "is_blue_verified": false,
+    "profile_image_url": "https://...",
+    "profile_banner_url": "https://...",
+    "location": "San Francisco, CA",
+    "can_dm": true,
+    "can_media_tag": true
+  },
+  "id": "1234567890",
+  "text": "Full post content here...",
+  "url": "https://x.com/exampleuser/status/1234567890",
+  "created_at": "2025-01-06T12:00:00Z",
+  "reply_count": 10,
+  "retweet_count": 50,
+  "like_count": 200,
+  "view_count": 5000,
+  "quote_count": 5,
+  "bookmark_count": 15,
+  "is_quote_tweet": false,
+  "is_retweet": false,
+  "lang": "en",
+  "conversation_id": "1234567890",
+  "media": [],
+  "cost": 0.0003
+}
+```
+
+**Note:** The response may include additional optional fields such as `quote` (for quote tweets), `retweet` (for retweets), `replies` (list of reply posts), `entities`, `extended_entities`, `in_reply_to_screen_name`, `in_reply_to_status_id`, `in_reply_to_user_id`, `quoted_status_id`, and `display_text_range`.
+
+**Example:**
+```python
+import httpx
+
+# Fetch a specific post
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/desearch/x/post",
+    json={
+        "post_id": "1234567890",
+    },
+    timeout=30.0,
+)
+
+post = response.json()
+print(f"Author: {post['user']['username']}")
+print(f"Text: {post['text']}")
+print(f"Engagement: {post['like_count']} likes, {post['retweet_count']} retweets")
+```
+
+---
+
+## OpenAI Endpoints
+
+OpenAI provides access to GPT-5 series models with built-in web search capability.
+
+### POST /api/gateway/openai/responses
+
+Create a response using OpenAI's GPT-5 models with optional web search.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/openai/responses`
+
+**Request Body:**
+```json
+{
+"model": "gpt-5-mini",
+  "input": [
+    {"role": "developer", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is the capital of France?"}
+  ],
+  "temperature": 0.7,
+  "max_output_tokens": 1000,
+  "tools": [{"type": "web_search"}],
+  "tool_choice": null,
+  "instructions": null
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `model` | string | Yes | - | Model identifier (see Available Models below) |
+| `input` | array | Yes | - | List of message objects with `role` and `content` |
+| `temperature` | float | No | 0.7 | Sampling temperature (0.0-2.0) |
+| `max_output_tokens` | integer | No | null | Maximum tokens to generate |
+| `tools` | array | No | null | Tool definitions (e.g., `[{"type": "web_search"}]`) |
+| `tool_choice` | string/object | No | null | Tool selection strategy |
+| `instructions` | string | No | null | System-level instructions |
+
+**Available Models:**
+
+| Model | Identifier | Notes |
+|-------|-----------|-------|
+| GPT-5 Mini | `gpt-5-mini` | Cost-effective, fast |
+| GPT-5 | `gpt-5` | Balanced performance |
+| GPT-5.2 | `gpt-5.2` | Enhanced reasoning |
+| GPT-5.2 Pro | `gpt-5.2-pro` | Most capable |
+| GPT-5 Nano | `gpt-5-nano` | Lightweight |
+
+**Web Search Tool:**
+
+Enable web search by including `tools`:
+```json
+"tools": [{"type": "web_search"}]
+```
+
+The model will autonomously decide when to search based on the prompt. Each search costs $0.01.
+
+**Response:**
+```json
+{
+  "id": "resp_123",
+  "object": "response",
+  "created_at": 1768496869,
+  "model": "gpt-5-mini-2025-08-07",
+  "output": [
+    {
+      "id": "msg_123",
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "The capital of France is Paris.",
+          "logprobs": [],
+          "annotations": []
+        }
+      ],
+      "status": "completed"
+    }
+  ],
+  "usage": {
+    "input_tokens": 22,
+    "output_tokens": 207,
+    "total_tokens": 229
+  },
+  "status": "completed",
+  "cost": 0.001953
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Response identifier |
+| `model` | string | Model used for generation |
+| `output` | array | List of output items (messages, reasoning steps) |
+| `output[].type` | string | Item type (`message`, `reasoning`) |
+| `output[].content[].text` | string | Generated text content |
+| `usage` | object | Token usage statistics |
+| `usage.input_tokens` | integer | Input tokens consumed |
+| `usage.output_tokens` | integer | Output tokens generated |
+| `cost` | float | Total cost in USD (includes token cost + web search cost) |
+
+**Example (using httpx):**
+```python
+import os
+import httpx
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL")
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/openai/responses",
+    json={
+        "model": "gpt-5-mini",
+        "input": [
+            {"role": "developer", "content": "You are an expert forecaster."},
+            {"role": "user", "content": "What is the probability of rain tomorrow?"}
+        ],
+        "tools": [{"type": "web_search"}],
+        "temperature": 0.7,
+    },
+    timeout=120.0,
+)
+
+result = response.json()
+
+# Extract text from output
+for item in result["output"]:
+    if item["type"] == "message":
+        for content in item["content"]:
+            if content.get("text"):
+                print(content["text"])
+```
+
+**Cost Calculation:**
+
+Total cost = Token cost + Web search cost
+
+- **Token cost:** Based on input/output tokens and model pricing
+- **Web search cost:** $0.01 per search executed
+
+The `cost` field in the response includes both components.
+
+**Error Handling:**
+
+| Status Code | Description | Recommended Action |
+|-------------|-------------|-------------------|
+| 503 | Service Unavailable | Retry with exponential backoff |
+| 404 | Model not found | Verify model identifier |
+| 429 | Rate limit exceeded | Retry with exponential backoff |
+| 401 | Authentication failed | Contact validator |
+| 500 | Internal server error | Retry with fallback |
+
+**Best Practices:**
+
+1. **Use web_search selectively:** Only enable when research is needed
+2. **Clear prompts:** Explicitly ask the model to search before forecasting
+3. **Model selection:** Use `gpt-5-mini` for cost-efficiency, `gpt-5.2` for complex reasoning
+4. **Error handling:** Always implement retry logic with fallback predictions
+
+---
+
+## Perplexity Endpoints
+
+Perplexity provides reasoning LLMs with built-in web search capability.
+
+### POST /api/gateway/perplexity/chat/completions
+
+Create a response using Perplexity's reasoning models with automatic web search.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/perplexity/chat/completions`
+
+**Request Body:**
+```json
+{
+"model": "sonar-reasoning-pro",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is the capital of France?"}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 1000,
+  "search_recency_filter": "month"
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `model` | string | Yes | - | Model identifier (see Available Models below) |
+| `messages` | array | Yes | - | List of message objects with `role` and `content` |
+| `temperature` | float | No | 0.7 | Sampling temperature (0.0-2.0) |
+| `max_tokens` | integer | No | null | Maximum tokens to generate |
+| `search_recency_filter` | string | No | null | Time range for search results (`day`, `week`, `month`, `year`) |
+
+**Available Models:**
+
+| Model | Identifier | Notes |
+|-------|-----------|-------|
+| Sonar Reasoning Pro | `sonar-reasoning-pro` | Most capable reasoning model |
+| Sonar Pro | `sonar-pro` | Balanced performance |
+| Sonar | `sonar` | Fast and efficient |
+
+**Response:**
+```json
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "sonar-reasoning-pro",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The capital of France is Paris."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 28,
+    "completion_tokens": 8,
+    "total_tokens": 36
+  },
+  "citations": [
+    "https://example.com/source1",
+    "https://example.com/source2"
+  ],
+  "search_results": [
+    {
+      "title": "Source title",
+      "url": "https://example.com/source1",
+      "snippet": "Relevant text..."
+    }
+  ],
+  "cost": 0.002145
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Response identifier |
+| `model` | string | Model used for generation |
+| `choices` | array | List of completion choices |
+| `choices[].message.content` | string | Generated text content |
+| `usage` | object | Token usage statistics |
+| `citations` | array | List of source URLs used |
+| `search_results` | array | Detailed search result objects |
+| `cost` | float | Total cost in USD |
+
+**Example (using httpx):**
+```python
+import os
+import httpx
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL")
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/perplexity/chat/completions",
+    json={
+        "model": "sonar-reasoning-pro",
+        "messages": [
+            {"role": "system", "content": "You are an expert forecaster."},
+            {"role": "user", "content": "What is the probability of rain tomorrow?"}
+        ],
+        "temperature": 0.2,
+        "search_recency_filter": "day",
+    },
+    timeout=120.0,
+)
+
+result = response.json()
+
+content = result["choices"][0]["message"]["content"]
+citations = result.get("citations", [])
+
+print(f"Response: {content}")
+print(f"Sources: {citations}")
+```
+
+**Error Handling:**
+
+| Status Code | Description | Recommended Action |
+|-------------|-------------|-------------------|
+| 503 | Service Unavailable | Retry with exponential backoff |
+| 404 | Model not found | Verify model identifier |
+| 429 | Rate limit exceeded | Retry with exponential backoff |
+| 401 | Authentication failed | Contact validator |
+| 500 | Internal server error | Retry with fallback |
+
+**Best Practices:**
+
+1. **Use search_recency_filter:** Set to `day` or `week` for time-sensitive events
+2. **Extract citations:** Use the `citations` array to verify information sources
+3. **Model selection:** Use `sonar-reasoning-pro` for complex reasoning tasks
+4. **Error handling:** Always implement retry logic with fallback predictions
+
+**Note:** Perplexity has no free tier. You must link your API key to use Perplexity models.
+
+---
+
+## Vericore Endpoints
+
+Vericore provides statement verification with evidence-based metrics including sentiment, conviction, source credibility, and more.
+
+### POST /api/gateway/vericore/calculate-rating
+
+Verify a statement against web evidence and get detailed metrics.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/vericore/calculate-rating`
+
+**Request Body:**
+```json
+{
+"statement": "Bitcoin will reach $100k by end of 2026",
+  "generate_preview": false
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `statement` | string | Yes | - | Statement to verify against web evidence |
+| `generate_preview` | boolean | No | false | Generate a preview URL for the results |
+
+**Response:**
+```json
+{
+  "batch_id": "mlzjxglo15m23k",
+  "request_id": "req-mlzjxgmc4amr6",
+  "preview_url": "",
+  "evidence_summary": {
+    "total_count": 12,
+    "neutral": 37.5,
+    "entailment": 1.03,
+    "contradiction": 61.46,
+    "sentiment": -0.07,
+    "conviction": 0.82,
+    "source_credibility": 0.93,
+    "narrative_momentum": 0.48,
+    "risk_reward_sentiment": -0.15,
+    "political_leaning": 0.0,
+    "catalyst_detection": 0.12,
+    "statements": [
+      {
+        "statement": "Evidence text from source...",
+        "url": "https://example.com/article",
+        "contradiction": 0.87,
+        "neutral": 0.12,
+        "entailment": 0.01,
+        "sentiment": -0.5,
+        "conviction": 0.75,
+        "source_credibility": 0.85,
+        "narrative_momentum": 0.5,
+        "risk_reward_sentiment": -0.5,
+        "political_leaning": 0.0,
+        "catalyst_detection": 0.3
+      }
+    ]
+  },
+  "cost": 0.05
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `batch_id` | string | Batch identifier |
+| `request_id` | string | Request identifier |
+| `preview_url` | string | Preview URL (empty if `generate_preview` is false) |
+| `evidence_summary.total_count` | integer | Number of evidence sources found |
+| `evidence_summary.entailment` | float | Aggregated entailment score |
+| `evidence_summary.contradiction` | float | Aggregated contradiction score |
+| `evidence_summary.sentiment` | float | Aggregated sentiment (-1.0 to 1.0) |
+| `evidence_summary.conviction` | float | Aggregated conviction level |
+| `evidence_summary.source_credibility` | float | Average source credibility |
+| `evidence_summary.statements` | array | Individual evidence sources with per-source metrics |
+
+**Example (using httpx):**
+```python
+import os
+import httpx
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL")
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/vericore/calculate-rating",
+    json={
+        "statement": "Bitcoin will reach $100k by end of 2026",
+    },
+    timeout=120.0,
+)
+
+result = response.json()
+
+summary = result["evidence_summary"]
+total = summary["total_count"]
+contradiction = summary["contradiction"]
+sentiment = summary["sentiment"]
+conviction = summary["conviction"]
+credibility = summary["source_credibility"]
+```
+
+**Error Handling:**
+
+| Status Code | Description | Recommended Action |
+|-------------|-------------|-------------------|
+| 503 | Service Unavailable | Retry with exponential backoff |
+| 429 | Rate limit exceeded | Retry with exponential backoff |
+| 401 | Authentication failed | Contact validator |
+| 500 | Internal server error | Retry with fallback |
+
+**Note:** Vericore has no free tier. You must link your API key to use Vericore. Each call costs $0.05.
+
+---
+
+## OpenRouter Endpoints
+
+OpenRouter is a model router that provides access to hundreds of LLM models through a unified API. You can use models from Anthropic, Google, Meta, and many other providers.
+
+### POST /api/gateway/openrouter/chat/completions
+
+Generate chat completions using any OpenRouter-supported model.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/openrouter/chat/completions`
+
+**Request Body:**
+```json
+{
+"model": "anthropic/claude-sonnet-4-6",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "What is the capital of France?"}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 1024
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `model` | string | Yes | - | OpenRouter model ID (e.g., `anthropic/claude-sonnet-4-6`) |
+| `messages` | array | Yes | - | Chat messages array with `role` and `content` |
+| `temperature` | float | No | 0.7 | Sampling temperature (0.0-2.0) |
+| `max_tokens` | integer | No | - | Maximum tokens to generate |
+| `tools` | array | No | - | Tool/function definitions for function calling |
+| `tool_choice` | string/object | No | - | Tool selection mode |
+
+**Response:**
+```json
+{
+  "id": "gen-abc123",
+  "object": "chat.completion",
+  "created": 1700000000,
+  "model": "anthropic/claude-sonnet-4-6",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "The capital of France is Paris."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 25,
+    "completion_tokens": 10,
+    "total_tokens": 35,
+    "cost": 0.000135
+  },
+  "cost": 0.000135
+}
+```
+
+**Response Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string | Unique completion identifier |
+| `model` | string | Model used for the completion |
+| `choices` | array | Array of completion choices |
+| `choices[].message.content` | string | Generated text response |
+| `choices[].finish_reason` | string | Why generation stopped (`stop`, `length`, `tool_calls`) |
+| `usage.prompt_tokens` | integer | Input tokens used |
+| `usage.completion_tokens` | integer | Output tokens generated |
+| `usage.cost` | decimal | Actual cost reported by OpenRouter |
+| `cost` | decimal | Total cost for this request |
+
+**Popular Models:**
+
+| Model ID | Description |
+|----------|-------------|
+| `anthropic/claude-sonnet-4-6` | Claude Sonnet 4.6 - balanced performance |
+| `anthropic/claude-haiku-4-5` | Claude Haiku 4.5 - fast and cost-effective |
+| `google/gemini-2.5-flash` | Gemini 2.5 Flash - fast and affordable |
+| `google/gemini-2.5-pro` | Gemini 2.5 Pro - high capability |
+
+See the full model list at https://openrouter.ai/models
+
+**Example (using httpx):**
+```python
+import os
+import httpx
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL")
+
+response = httpx.post(
+    f"{PROXY_URL}/api/gateway/openrouter/chat/completions",
+    json={
+        "model": "anthropic/claude-sonnet-4-6",
+        "messages": [
+            {"role": "user", "content": "Analyze the likelihood of this event..."}
+        ],
+        "temperature": 0.2,
+        "max_tokens": 1024,
+    },
+    timeout=120.0,
+)
+
+result = response.json()
+content = result["choices"][0]["message"]["content"]
+cost = result.get("cost", 0.0)
+```
+
+**Error Handling:**
+
+| Status Code | Description | Recommended Action |
+|-------------|-------------|-------------------|
+| 503 | Service Unavailable | Retry with exponential backoff |
+| 429 | Rate limit exceeded | Retry with exponential backoff |
+| 401 | Authentication failed | Contact validator |
+| 500 | Internal server error | Retry with fallback model |
+
+**Note:** OpenRouter has no free tier. You must link your API key to use OpenRouter models.
+
+---
+
+## Numinous Indicia Endpoints
+
+Numinous Indicia provides geopolitical and OSINT signals intelligence from X/Twitter and LiveUAMap. Useful as additional context for geopolitical forecasting when combined with an LLM.
+
+### POST /api/gateway/numinous-indicia/x-osint
+
+Fetch geopolitical signals derived from X/Twitter OSINT sources.
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/numinous-indicia/x-osint`
+
+**Request Body:**
+```json
+{
+"account": null,
+  "limit": 20
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `account` | string | No | null | Filter by specific X account |
+| `limit` | integer | No | 20 | Number of signals to return (1-50) |
+
+### POST /api/gateway/numinous-indicia/liveuamap
+
+Fetch geopolitical signals from LiveUAMap (military/conflict data).
+
+**URL:** `{SANDBOX_PROXY_URL}/api/gateway/numinous-indicia/liveuamap`
+
+**Request Body:**
+```json
+{
+"region": null,
+  "limit": 50
+}
+```
+
+**Parameters:**
+
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `region` | string | No | null | Filter by geographic region |
+| `limit` | integer | No | 50 | Number of signals to return (1-200) |
+
+### Response (both endpoints)
+
+```json
+{
+  "signals": [
+    {
+      "topic": "Ukraine conflict",
+      "category": "military",
+      "signal": "Russian forces advance near Pokrovsk...",
+      "confidence": "high",
+      "fact_status": "confirmed",
+      "timestamp": "2026-03-08T14:30:00Z",
+      "source_url": "https://example.com/source",
+      "evidence_refs": ["https://example.com/ref1"]
+    }
+  ],
+  "cost": 0.0
+}
+```
+
+**Signal Fields:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `signals` | array | List of signal objects |
+| `signals[].topic` | string | Signal topic |
+| `signals[].category` | string | Signal category (e.g., military, political) |
+| `signals[].signal` | string | Signal description text |
+| `signals[].confidence` | string | Confidence level |
+| `signals[].fact_status` | string | Verification status |
+| `signals[].timestamp` | string (ISO 8601) | When the signal was captured |
+| `signals[].source_url` | string | Original source URL (may be null) |
+| `signals[].evidence_refs` | array | Supporting evidence URLs |
+| `cost` | decimal | Cost for this request (currently $0) |
+
+**Example (using httpx):**
+```python
+import os
+import httpx
+
+PROXY_URL = os.getenv("SANDBOX_PROXY_URL")
+
+INDICIA_URL = f"{PROXY_URL}/api/gateway/numinous-indicia"
+
+# Fetch X/Twitter OSINT signals
+response = httpx.post(
+    f"{INDICIA_URL}/x-osint",
+    json={"limit": 20},
+    timeout=30.0,
+)
+
+data = response.json()
+signals = data["signals"]
+
+for s in signals:
+    print(f"[{s['category']}] {s['signal']} (confidence={s['confidence']})")
+```
+
+**Error Handling:**
+
+| Status Code | Description | Recommended Action |
+|-------------|-------------|-------------------|
+| 503 | Service Unavailable | Retry with exponential backoff |
+| 429 | Rate limit exceeded | Retry with exponential backoff |
+| 500 | Internal server error | Retry with fallback |
+
+**Note:** Numinous Indicia is free to use. No API key linking required.
+
+See `neurons/miner/agents/indicia_openai_example.py` for a complete agent that combines Indicia signals with OpenAI web search for geopolitical forecasting.
+
+---
+
+## Caching
+
+The gateway implements request-level caching to increase consensus stabilit among validators, optimize performance, reduce API costs.
+
+**Cache Behavior:**
+- Requests with identical parameters return cached responses instantly
+- Cache is keyed by endpoint name and request parameters
+- Cache persists for the lifetime of the gateway process
+- Cache is shared across all agent executions on the same validator
+
+This is crucial to increase the consensus stability per validator given the variance of LLMs when hit twice with the same prompt.
+
+**Prompt rules**. Use consistent prompts across executions to ensure that the cache is hit. In practice, **DO NOT** include dynamic timestamps or random data in prompts.
+
+
+
+**Example:**
+```python
+# These two identical requests will share the same cached response:
+
+# Request 1
+response1 = httpx.post(
+    f"{PROXY_URL}/api/gateway/chutes/chat/completions",
+    json={
+        "model": "deepseek-ai/DeepSeek-V3-0324",
+        "messages": [{"role": "user", "content": "What is 2+2?"}],
+    },
+)
+
+# Request 2 (same prompt → cache hit)
+response2 = httpx.post(
+    f"{PROXY_URL}/api/gateway/chutes/chat/completions",
+    json={
+        "model": "deepseek-ai/DeepSeek-V3-0324",
+        "messages": [{"role": "user", "content": "What is 2+2?"}],
+    },
+)
+# response2 is served from cache instantly
+```
+
+---
+
+## Best Practices
+
+
+### Prompt Rules
+
+Avoid dynamic content in prompts to maximize cache hits:
+
+```python
+# BAD - Breaks caching
+from datetime import datetime
+prompt = f"Current date: {datetime.now()}. Analyze this event: {description}"
+
+# GOOD - Static prompt leverages cache
+prompt = f"Analyze this event: {description}"
+```
+
+
+### Error Handling
+
+Always implement robust error handling with retry logic:
+
+```python
+import time
+from typing import Optional
+
+def query_llm_with_retry(prompt: str, max_retries: int = 3) -> Optional[str]:
+    base_delay = 2  # seconds
+
+    for attempt in range(max_retries):
+        try:
+            response = httpx.post(
+                f"{PROXY_URL}/api/gateway/chutes/chat/completions",
+                json={
+                                "model": "deepseek-ai/DeepSeek-V3-0324",
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=60.0,
+            )
+
+            if response.status_code == 200:
+                result = response.json()
+                return result["choices"][0]["message"]["content"]
+
+            # Handle rate limits and cold models
+            if response.status_code in [503, 429]:
+                if attempt < max_retries - 1:
+                    delay = base_delay ** (attempt + 1)  # 2s, 4s, 8s
+                    time.sleep(delay)
+                    continue
+
+            # Other errors, return None
+            return None
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                time.sleep(base_delay ** (attempt + 1))
+                continue
+            return None
+
+    return None  # All retries exhausted
+```
+
+### Timeout Management
+
+Plan your execution time to stay within the 240-second sandbox limit:
+
+```python
+import time
+
+start_time = time.time()
+timeout_buffer = 10  # seconds
+max_time = 230  # 240s limit - 10s buffer
+
+def time_remaining():
+    elapsed = time.time() - start_time
+    return max_time - elapsed
+
+# Use in your logic
+if time_remaining() < 30:
+    # Not enough time for API call, use fallback
+    return {"event_id": event_data["event_id"], "prediction": 0.5}
+```
+
+
+### Model Selection
+
+Consider using the status endpoint to select the best-performing model dynamically:
+
+```python
+def get_best_model():
+    try:
+        response = httpx.get(
+            f"{PROXY_URL}/api/gateway/chutes/status",
+            timeout=5.0,
+        )
+
+        if response.status_code == 200:
+            status_list = response.json()
+
+            # Filter for low utilization
+            available = [
+                s for s in status_list
+                if s["utilization_current"] < 0.6 and s["rate_limit_ratio_5m"] < 0.2
+            ]
+
+            if available:
+                best = min(available, key=lambda x: x["utilization_current"])
+                return best["name"]
+    except:
+        pass
+
+    # Fallback to reliable default
+    return "deepseek-ai/DeepSeek-V3-0324"
+```
+
+### Search Strategy
+
+Use appropriate Desearch endpoints based on your needs:
+
+- **AI Search** (`/ai/search`): When you need summarized information
+- **Links** (`/ai/links`): When you need source URLs without summaries
+- **Web Search** (`/web/search`): Fastest option for raw search results
+- **Crawl** (`/web/crawl`): For extracting full content from specific URLs
+
+```python
+# Multi-step search strategy
+def gather_information(query: str):
+    # Step 1: Fast web search for relevant URLs
+    search = httpx.post(
+        f"{PROXY_URL}/api/gateway/desearch/web/search",
+        json={"query": query, "num": 10},
+        timeout=20.0,
+    )
+    urls = [r["link"] for r in search.json()["data"][:5]]
+
+    # Step 2: Crawl top results for full content
+    contents = []
+    for url in urls:
+        crawl = httpx.post(
+            f"{PROXY_URL}/api/gateway/desearch/web/crawl",
+            json={"url": url},
+            timeout=20.0,
+        )
+        if crawl.status_code == 200:
+            contents.append(crawl.json()["content"][:1000])  # Truncate
+
+    return contents
+```
+
+## Common Errors
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| `CHUTES_API_KEY not configured` | Gateway missing API key | Contact validator or check gateway configuration |
+| `DESEARCH_API_KEY not configured` | Gateway missing API key | Contact validator or check gateway configuration |
+| `503 Service Unavailable` | Model is cold (no active instances) | Retry with exponential backoff (2-8s delays) |
+| `429 Too Many Requests` | Rate limit exceeded | Retry with exponential backoff |
+| `404 Not Found` | Invalid model name | Verify model exists at https://chutes.ai/app |
+| `Connection timeout` | Network issue or slow gateway | Increase timeout, implement retry logic |
+| `422 Unprocessable Entity` | Invalid request parameters | Validate request body against API spec |
+
+---
+
+## Additional Resources
+
+- **Chutes AI Models:** https://chutes.ai/app
+- **Desearch AI Documentation:** https://desearch.ai/
+- **Miner Setup Guide:** [miner-setup.md](./miner-setup.md)
+- **Subnet Rules:** [subnet-rules.md](./subnet-rules.md)
+- **Architecture Overview:** [architecture.md](./architecture.md)

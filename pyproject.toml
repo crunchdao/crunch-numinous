@@ -4,13 +4,24 @@ build-backend = "hatchling.build"
 
 [project]
 name = "crunch-numinous"
-version = "0.2.1"
+version = "0.3.0"
 description = "Numinous Crunch Starter Package"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pydantic>=2.0",
+    "click>=8.0",
+    "rich>=13.0",
+    "fastapi>=0.110.3",
+    "uvicorn>=0.34.0",
+    "aiohttp~=3.13",
+    "python-dotenv>=1.0.0",
+    "httpx>=0.27",
+    "ipykernel>=7.2.0",
 ]
+
+[project.scripts]
+crunch-numinous = "numinous.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
