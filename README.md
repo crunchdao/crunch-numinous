@@ -105,12 +105,9 @@ Inside `_predict()`, `self._get_data(subject)` gives you:
 | `volume_24h` | `float` | Recent trading volume in USD |
 | `metadata` | `dict` | Additional source-specific data (slug, condition_id, etc.) |
 
-## Examples
+## Example
 
-See the [example notebooks](numinous/examples/) to get started:
-
-- **`quickstart.ipynb`** — build an LLM-based forecaster from scratch
-- **`geopolitical_tracker.ipynb`** — market price + geopolitical signal adjustment using Numinous Indicia
+See the [quickstart notebook](numinous/examples/quickstart.ipynb) to get started.
 
 ## Gateway
 
