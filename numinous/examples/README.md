@@ -1,41 +1,40 @@
 # Example Forecasting Models
 
-These are example models for the Numinous binary event forecasting competition.
-Each model implements `TrackerBase` and returns a probability estimate for
-binary events (e.g., "Will X happen by date Y?").
+Example notebooks for the Numinous binary event forecasting competition.
 
-## Models
+## Notebooks
 
-| Model | Strategy | Description |
-|-------|----------|-------------|
-| `BaselineTracker` | Always 0.5 | Uninformative prior — guaranteed Brier score of 0.25 |
-| `MarketTracker` | Market price | Uses the current `yes_price` as the prediction (efficient market hypothesis) |
-| `CalibratedTracker` | Shrink to 0.5 | Pulls market price toward 0.5 with Bayesian shrinkage (alpha=0.8) |
-| `ContrarianTracker` | Invert market | Predicts `1.0 - yes_price` — bets against the crowd |
-| `KeywordTracker` | Text heuristic | Adjusts market price based on keyword sentiment in the event title/description |
+| Notebook | Description |
+|----------|-------------|
+| `quickstart.ipynb` | Minimal example — build an LLM-based forecaster from scratch |
+| `geopolitical_tracker.ipynb` | Market price + geopolitical signal adjustment using Numinous Indicia |
 
 ## Interface
 
-All models receive event data via `feed_update()` and return predictions
-via `predict()`:
+All models subclass `TrackerBase` and implement `_predict()`:
 
 ```python
-# Input (via feed_update)
+from numinous.tracker import TrackerBase
+
+class MyTracker(TrackerBase):
+    def _predict(self, subject):
+        data = self._get_data(subject)
+        # ... your logic here ...
+        return {"event_id": data["event_id"], "prediction": 0.65}
+```
+
+Models receive event data via `feed_update()`:
+
+```python
 {
-    "event_id": "polymarket-12345",
+    "event_id": "numinous-12345",
     "title": "Will X happen by Y?",
     "description": "...",
     "cutoff": "2026-03-16T00:00:00Z",
-    "source": "polymarket",
+    "source": "numinous",
     "yes_price": 0.65,
     "volume_24h": 150000.0,
-    "metadata": {...}
-}
-
-# Output (from predict)
-{
-    "event_id": "polymarket-12345",
-    "prediction": 0.72   # probability of "Yes" (0.0 to 1.0)
+    "metadata": {"market_type": "Geopolitics", ...}
 }
 ```
 
@@ -46,10 +45,3 @@ Predictions are scored with the **Brier score**: `(prediction - outcome)²`
 - Lower is better: 0.0 = perfect, 1.0 = worst
 - Predictions are clipped to [0.01, 0.99]
 - Missing predictions are imputed as 0.5 → Brier score of 0.25
-
-## Building Your Own
-
-1. Subclass `TrackerBase`
-2. Implement `_predict()` returning `{"event_id": str, "prediction": float}`
-3. Use `self._get_data(subject)` to access the latest event data
-4. Use any Python libraries, LLMs, or search tools you want
