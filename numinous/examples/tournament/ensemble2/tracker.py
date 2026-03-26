@@ -6,7 +6,7 @@ from ensemble2 import agent_main
 
 class Ensemble2(TrackerBase):
 
-    def _predict(self, subject: str, resolve_horizon_seconds: int, step_seconds: int) -> dict:
+    def _predict(self, subject: str) -> dict:
         data = self._get_data(subject)
         if not isinstance(data, dict):
             return {"event_id": subject, "prediction": 0.5}

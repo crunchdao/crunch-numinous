@@ -71,7 +71,7 @@ from numinous.tracker import TrackerBase
 
 class MyModel(TrackerBase):
 
-    def _predict(self, subject, resolve_horizon_seconds, step_seconds):
+    def _predict(self, subject):
         data = self._get_data(subject)
         if not isinstance(data, dict):
             return {"event_id": subject, "prediction": 0.5}
@@ -123,7 +123,7 @@ from numinous.examples import MarketTracker
 # Use directly
 tracker = MarketTracker()
 tracker.feed_update({"event_id": "abc", "yes_price": 0.65, "title": "Will X happen?"})
-result = tracker.predict("abc", resolve_horizon_seconds=3600, step_seconds=300)
+result = tracker.predict("abc")
 print(result)  # {"event_id": "abc", "prediction": 0.65}
 ```
 

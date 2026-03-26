@@ -63,47 +63,35 @@ class TestExampleContract:
 
     def test_returns_dict_with_prediction(self, tracker):
         tracker.feed_update(BULLISH_EVENT)
-        result = tracker.predict(
-            "polymarket", resolve_horizon_seconds=259200, step_seconds=1
-        )
+        result = tracker.predict("polymarket")
         assert isinstance(result, dict)
         assert "prediction" in result
         assert isinstance(result["prediction"], (int, float))
 
     def test_returns_dict_with_event_id(self, tracker):
         tracker.feed_update(BULLISH_EVENT)
-        result = tracker.predict(
-            "polymarket", resolve_horizon_seconds=259200, step_seconds=1
-        )
+        result = tracker.predict("polymarket")
         assert "event_id" in result
         assert isinstance(result["event_id"], str)
 
     def test_prediction_in_valid_range(self, tracker):
         tracker.feed_update(BULLISH_EVENT)
-        result = tracker.predict(
-            "polymarket", resolve_horizon_seconds=259200, step_seconds=1
-        )
+        result = tracker.predict("polymarket")
         assert 0.0 <= result["prediction"] <= 1.0
 
     def test_no_data_returns_half(self, tracker):
         """Without any feed data, default to 0.5 (maximum uncertainty)."""
-        result = tracker.predict(
-            "polymarket", resolve_horizon_seconds=259200, step_seconds=1
-        )
+        result = tracker.predict("polymarket")
         assert result["prediction"] == 0.5
 
     def test_different_prices_produce_different_predictions(self, tracker):
         """At least some trackers should respond to different yes_prices."""
         tracker.feed_update(_make_event_data(yes_price=0.8))
-        pred_high = tracker.predict(
-            "polymarket", resolve_horizon_seconds=259200, step_seconds=1
-        )
+        pred_high = tracker.predict("polymarket")
 
         tracker2 = type(tracker)()
         tracker2.feed_update(_make_event_data(yes_price=0.2))
-        pred_low = tracker2.predict(
-            "polymarket", resolve_horizon_seconds=259200, step_seconds=1
-        )
+        pred_low = tracker2.predict("polymarket")
 
         # BaselineTracker always returns 0.5, so skip the assertion for it
         if not isinstance(tracker, BaselineTracker):
@@ -116,25 +104,25 @@ class TestSpecificModels:
     def test_baseline_always_half(self):
         tracker = BaselineTracker()
         tracker.feed_update(BULLISH_EVENT)
-        result = tracker.predict("polymarket", 259200, 1)
+        result = tracker.predict("polymarket")
         assert result["prediction"] == 0.5
 
     def test_market_follows_price(self):
         tracker = MarketTracker()
         tracker.feed_update(_make_event_data(yes_price=0.73))
-        result = tracker.predict("polymarket", 259200, 1)
+        result = tracker.predict("polymarket")
         assert result["prediction"] == 0.73
 
     def test_contrarian_inverts_price(self):
         tracker = ContrarianTracker()
         tracker.feed_update(_make_event_data(yes_price=0.7))
-        result = tracker.predict("polymarket", 259200, 1)
+        result = tracker.predict("polymarket")
         assert abs(result["prediction"] - 0.3) < 1e-9
 
     def test_calibrated_shrinks_toward_half(self):
         tracker = CalibratedTracker()
         tracker.feed_update(_make_event_data(yes_price=0.8))
-        result = tracker.predict("polymarket", 259200, 1)
+        result = tracker.predict("polymarket")
         # With alpha=0.8: 0.8 * 0.8 + 0.2 * 0.5 = 0.74
         assert 0.5 < result["prediction"] < 0.8
 
@@ -146,7 +134,7 @@ class TestSpecificModels:
                 title="Expected to pass, confirmed by experts",
             )
         )
-        result = tracker.predict("polymarket", 259200, 1)
+        result = tracker.predict("polymarket")
         assert result["prediction"] > 0.5
 
     def test_keyword_adjusts_for_negative_words(self):
@@ -157,7 +145,7 @@ class TestSpecificModels:
                 title="Unlikely to pass, rejected by committee",
             )
         )
-        result = tracker.predict("polymarket", 259200, 1)
+        result = tracker.predict("polymarket")
         assert result["prediction"] < 0.5
 
 
@@ -178,12 +166,12 @@ class TestNuminousEventCompat:
 
     def test_returns_valid_prediction_for_numinous_event(self, tracker):
         tracker.feed_update(NUMINOUS_EVENT)
-        result = tracker.predict("numinous", resolve_horizon_seconds=259200, step_seconds=1)
+        result = tracker.predict("numinous")
         assert isinstance(result, dict)
         assert "prediction" in result
         assert 0.0 <= result["prediction"] <= 1.0
 
     def test_returns_event_id(self, tracker):
         tracker.feed_update(NUMINOUS_EVENT)
-        result = tracker.predict("numinous", resolve_horizon_seconds=259200, step_seconds=1)
+        result = tracker.predict("numinous")
         assert result.get("event_id") == "numinous-001"
