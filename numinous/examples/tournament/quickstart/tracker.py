@@ -17,7 +17,7 @@ from numinous.tracker import TrackerBase
 
 class Quickstart(TrackerBase):
 
-    def _predict(self, subject, resolve_horizon_seconds, step_seconds):
+    def _predict(self, subject):
         data = self._get_data(subject)
         if not isinstance(data, dict):
             return {"event_id": subject, "prediction": 0.5}
