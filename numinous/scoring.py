@@ -46,7 +46,6 @@ class ForecastOutput(BaseModel):
 
     event_id: str = ""
     prediction: float = 0.5
-    market_type: str = ""
 
 
 class EventGroundTruth(BaseModel):
@@ -71,7 +70,6 @@ class BrierScoreResult(BaseModel):
     brier_score: float = 0.0
     clipped_prediction: float = 0.5
     outcome: int = 0
-    market_type: str = ""
     success: bool = True
     failed_reason: str | None = None
 
@@ -102,7 +100,6 @@ def score_prediction(
     # Validate outcome is binary
     if outcome not in (0, 1):
         return BrierScoreResult(
-            market_type=prediction.market_type,
             success=False,
             failed_reason=f"outcome must be 0 or 1, got {outcome}",
         )
@@ -119,5 +116,4 @@ def score_prediction(
         brier_score=brier,
         clipped_prediction=clipped,
         outcome=outcome,
-        market_type=prediction.market_type,
     )

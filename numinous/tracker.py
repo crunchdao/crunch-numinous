@@ -102,13 +102,6 @@ class TrackerBase:
                 {"event_id": str, "prediction": float}
         """
         result = self._predict(subject)
-        data = self._get_data(subject)
-        if isinstance(data, dict):
-            metadata = data.get("metadata") or {}
-            if isinstance(metadata, dict):
-                result["market_type"] = metadata.get("market_type", "")
-            else:
-                result["market_type"] = ""
         logger.info(
             "[%s] predict subject=%s → %s",
             self._model_name,
