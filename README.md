@@ -179,7 +179,6 @@ GATEWAY_URL = os.environ.get("SANDBOX_PROXY_URL", "http://localhost:8090")
 resp = httpx.post(
     f"{GATEWAY_URL}/api/gateway/openai/responses",
     json={
-        "run_id": str(uuid.uuid4()),
         "model": "gpt-5-nano",
         "input": [{"role": "user", "content": "Will BTC hit 100k?"}],
     },
