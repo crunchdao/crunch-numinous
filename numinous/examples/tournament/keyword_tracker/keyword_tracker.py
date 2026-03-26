@@ -29,7 +29,7 @@ class KeywordTracker(TrackerBase):
     """Adjusts market price based on keyword sentiment in the question."""
 
     def _predict(
-        self, subject: str, resolve_horizon_seconds: int, step_seconds: int
+        self, subject: str
     ) -> dict:
         data = self._get_data(subject)
         if not isinstance(data, dict):

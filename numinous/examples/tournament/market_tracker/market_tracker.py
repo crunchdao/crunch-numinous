@@ -18,7 +18,7 @@ class MarketTracker(TrackerBase):
     """Returns the current market yes_price as the prediction."""
 
     def _predict(
-        self, subject: str, resolve_horizon_seconds: int, step_seconds: int
+        self, subject: str
     ) -> dict:
         data = self._get_data(subject)
         if not isinstance(data, dict):

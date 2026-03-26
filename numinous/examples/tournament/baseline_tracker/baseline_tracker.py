@@ -15,7 +15,7 @@ class BaselineTracker(TrackerBase):
     """Always returns 0.5 — the uninformative prior."""
 
     def _predict(
-        self, subject: str, resolve_horizon_seconds: int, step_seconds: int
+        self, subject: str
     ) -> dict:
         data = self._get_data(subject)
         event_id = data.get("event_id", subject) if isinstance(data, dict) else subject

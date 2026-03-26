@@ -19,7 +19,7 @@ class CalibratedTracker(TrackerBase):
     """Shrinks market price toward 0.5 — a calibration correction."""
 
     def _predict(
-        self, subject: str, resolve_horizon_seconds: int, step_seconds: int
+        self, subject: str
     ) -> dict:
         data = self._get_data(subject)
         if not isinstance(data, dict):
