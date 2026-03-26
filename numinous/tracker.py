@@ -108,6 +108,15 @@ class TrackerBase:
             Where prediction is a probability between 0.0 and 1.0.
         """
         result = self._predict(subject, resolve_horizon_seconds, step_seconds)
+        data = self._get_data(subject)
+        if isinstance(data, dict) and "market_type" not in result:
+            metadata = data.get("metadata") or {}
+            if isinstance(metadata, dict):
+                market_type = metadata.get("market_type", "")
+            else:
+                market_type = ""
+            if market_type:
+                result["market_type"] = market_type
         logger.info(
             "[%s] predict subject=%s horizon=%ds → %s",
             self._model_name,
