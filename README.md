@@ -105,29 +105,12 @@ Inside `_predict()`, `self._get_data(subject)` gives you:
 | `volume_24h` | `float` | Recent trading volume in USD |
 | `metadata` | `dict` | Additional source-specific data (slug, condition_id, etc.) |
 
-## Tracker Examples
+## Examples
 
-The package ships with several example trackers:
+See the [example notebooks](numinous/examples/) to get started:
 
-| Tracker | Strategy |
-|---------|----------|
-| **`BaselineTracker`** | Always predicts 0.5 — the uninformative prior. Guaranteed Brier score of 0.25. |
-| **`MarketTracker`** | Returns the current `yes_price` as the prediction. |
-| **`CalibratedTracker`** | Shrinks market price toward 0.5 using Bayesian shrinkage (α=0.8). |
-| **`ContrarianTracker`** | Predicts `1.0 - yes_price` — bets against the crowd. |
-| **`KeywordTracker`** | Adjusts market price using keyword sentiment from the event title/description. |
-
-```python
-from numinous.examples import MarketTracker
-
-# Use directly
-tracker = MarketTracker()
-tracker.feed_update({"event_id": "abc", "yes_price": 0.65, "title": "Will X happen?"})
-result = tracker.predict("abc")
-print(result)  # {"event_id": "abc", "prediction": 0.65}
-```
-
-See [`numinous/examples/`](numinous/examples/) for full implementations.
+- **`quickstart.ipynb`** — build an LLM-based forecaster from scratch
+- **`geopolitical_tracker.ipynb`** — market price + geopolitical signal adjustment using Numinous Indicia
 
 ## Gateway
 
