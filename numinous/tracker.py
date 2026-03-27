@@ -4,11 +4,11 @@ Models receive binary event data and must return a probability estimate.
 
 The ``predict()`` return value must match ``ForecastOutput``::
 
-    {"event_id": "abc123", "prediction": 0.72}   # 72% chance of "Yes"
-    {"event_id": "abc123", "prediction": 0.5}     # maximum uncertainty
-    {"event_id": "abc123", "prediction": 0.05}    # very likely "No"
+    {"event_id": "abc123", "prediction": 0.72}
+    {"event_id": "abc123", "prediction": 0.72, "reasoning": "Based on..."}
 
-Predictions are clipped to [0.01, 0.99] during scoring.
+The ``reasoning`` field is optional. Predictions are clipped to [0.01, 0.99]
+during scoring.
 """
 
 from __future__ import annotations
@@ -42,21 +42,16 @@ class TrackerBase:
         Data is stored per-subject (event_id or symbol key).
 
         Args:
-            data: Event data dict, typically containing::
+            data: Event data dict (aligned with Numinous Subnet 6 AgentInput)::
 
                 {
                     "event_id": "numinous-12345",
                     "title": "Will X happen by Y?",
                     "description": "...",
-                    "cutoff": "2026-03-16T00:00:00Z",
-                    "source": "numinous",
-                    "metadata": {
-                        "market_type": "LLM",
-                        "topics": [...],
-                        "polymarket_market_id": null,
-                        "yes_price": null,
-                    }
+                    "cutoff": "2026-03-16T00:00:00Z"
                 }
+
+            The ``description`` and ``cutoff`` fields are optional.
         """
         if isinstance(data, dict):
             # Use event_id as primary key, fall back to symbol, then _default
@@ -102,7 +97,7 @@ class TrackerBase:
         Returns:
             Dict matching ``ForecastOutput`` fields::
 
-                {"event_id": str, "prediction": float}
+                {"event_id": str, "prediction": float, "reasoning": str | None}
         """
         result = self._predict(subject)
         logger.info(

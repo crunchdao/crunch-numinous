@@ -15,23 +15,16 @@ pip install crunch-numinous
 For each event, you receive structured data and must return a **probability between 0.0 and 1.0** that the event resolves "Yes":
 
 ```python
-# Input: event data pushed to your model
+# Input: event data pushed to your model (aligned with Numinous Subnet 6 AgentInput)
 {
     "event_id": "numinous-12345",
     "title": "Will X happen by Y?",
-    "description": "...",
-    "cutoff": "2026-03-16T00:00:00Z",
-    "source": "numinous",
-    "metadata": {
-        "market_type": "LLM",
-        "topics": [...],
-        "polymarket_market_id": null,
-        "yes_price": null
-    }
+    "description": "...",            # optional
+    "cutoff": "2026-03-16T00:00:00Z" # optional, ISO 8601
 }
 
 # Output: your probability forecast
-{"event_id": "numinous-12345", "prediction": 0.72}
+{"event_id": "numinous-12345", "prediction": 0.72, "reasoning": "Based on..."}
 ```
 
 - `prediction = 1.0` → certain "Yes"
@@ -99,10 +92,8 @@ Inside `_predict()`, `self._get_data(subject)` gives you:
 |-------|------|-------------|
 | `event_id` | `str` | Unique event identifier |
 | `title` | `str` | The question being asked |
-| `description` | `str` | Additional context and resolution criteria |
-| `cutoff` | `str` | ISO 8601 resolution deadline |
-| `source` | `str` | Data source (e.g. `"numinous"`) |
-| `metadata` | `dict` | Additional data (market_type, topics, polymarket_market_id, yes_price) |
+| `description` | `str \| None` | Additional context and resolution criteria |
+| `cutoff` | `str \| None` | ISO 8601 resolution deadline |
 
 ## Example
 
