@@ -102,7 +102,7 @@ def score_prediction(
     if outcome not in (0, 1):
         return BrierScoreResult(
             success=False,
-            failed_reason="outcome must be 0 or 1, got %s" % outcome,
+            failed_reason=f"outcome must be 0 or 1, got {outcome}",
         )
 
     # Clip prediction to [CLIP_EPS, 1 - CLIP_EPS]
