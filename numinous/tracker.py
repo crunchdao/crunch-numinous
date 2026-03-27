@@ -45,14 +45,17 @@ class TrackerBase:
             data: Event data dict, typically containing::
 
                 {
-                    "event_id": "polymarket-12345",
+                    "event_id": "numinous-12345",
                     "title": "Will X happen by Y?",
                     "description": "...",
                     "cutoff": "2026-03-16T00:00:00Z",
-                    "source": "polymarket",
-                    "yes_price": 0.65,
-                    "volume_24h": 150000.0,
-                    "metadata": {...}
+                    "source": "numinous",
+                    "metadata": {
+                        "market_type": "LLM",
+                        "topics": [...],
+                        "polymarket_market_id": null,
+                        "yes_price": null,
+                    }
                 }
         """
         if isinstance(data, dict):

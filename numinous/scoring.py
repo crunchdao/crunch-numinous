@@ -30,9 +30,7 @@ class EventInput(BaseModel):
     title: str = ""
     description: str = ""
     cutoff: str = ""  # ISO 8601 resolution deadline
-    source: str = ""  # e.g. "polymarket"
-    yes_price: float = 0.5  # current market price (informational)
-    volume_24h: float = 0.0  # recent trading volume
+    source: str = ""
     metadata: dict = Field(default_factory=dict)
 
 
