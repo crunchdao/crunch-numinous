@@ -17,18 +17,21 @@ For each event, you receive structured data and must return a **probability betw
 ```python
 # Input: event data pushed to your model
 {
-    "event_id": "polymarket-12345",
+    "event_id": "numinous-12345",
     "title": "Will X happen by Y?",
     "description": "...",
     "cutoff": "2026-03-16T00:00:00Z",
-    "source": "polymarket",
-    "yes_price": 0.65,          # current market price
-    "volume_24h": 150000.0,
-    "metadata": {}
+    "source": "numinous",
+    "metadata": {
+        "market_type": "LLM",
+        "topics": [...],
+        "polymarket_market_id": null,
+        "yes_price": null
+    }
 }
 
 # Output: your probability forecast
-{"event_id": "polymarket-12345", "prediction": 0.72}
+{"event_id": "numinous-12345", "prediction": 0.72}
 ```
 
 - `prediction = 1.0` → certain "Yes"
@@ -77,10 +80,8 @@ class MyModel(TrackerBase):
             return {"event_id": subject, "prediction": 0.5}
 
         event_id = data.get("event_id", subject)
-        yes_price = data.get("yes_price", 0.5)
-
-        # Your logic here — this example just follows the market
-        prediction = yes_price
+        # Your logic here
+        prediction = 0.5
 
         return {"event_id": event_id, "prediction": prediction}
 ```
@@ -100,10 +101,8 @@ Inside `_predict()`, `self._get_data(subject)` gives you:
 | `title` | `str` | The question being asked |
 | `description` | `str` | Additional context and resolution criteria |
 | `cutoff` | `str` | ISO 8601 resolution deadline |
-| `source` | `str` | Data source (e.g. `"polymarket"`) |
-| `yes_price` | `float` | Current market probability (0.0–1.0) |
-| `volume_24h` | `float` | Recent trading volume in USD |
-| `metadata` | `dict` | Additional source-specific data (slug, condition_id, etc.) |
+| `source` | `str` | Data source (e.g. `"numinous"`) |
+| `metadata` | `dict` | Additional data (market_type, topics, polymarket_market_id, yes_price) |
 
 ## Example
 
