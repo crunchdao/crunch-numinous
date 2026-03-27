@@ -14,6 +14,8 @@ report your honest probability estimate.
 
 from __future__ import annotations
 
+from typing import Optional
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -23,15 +25,14 @@ from pydantic import BaseModel, ConfigDict, Field
 class EventInput(BaseModel):
     """What participants receive: a binary event to forecast.
 
-    Each event is a yes/no question with a resolution deadline.
+    Each event is a yes/no question with an optional resolution deadline.
+    Aligned with Numinous Subnet 6 AgentInput.
     """
 
     event_id: str = ""
     title: str = ""
-    description: str = ""
-    cutoff: str = ""  # ISO 8601 resolution deadline
-    source: str = ""
-    metadata: dict = Field(default_factory=dict)
+    description: Optional[str] = None
+    cutoff: Optional[str] = None
 
 
 class ForecastOutput(BaseModel):
@@ -40,10 +41,12 @@ class ForecastOutput(BaseModel):
     prediction: float between 0.0 and 1.0
         Probability that the event resolves "Yes".
         0.0 = certain "No", 1.0 = certain "Yes", 0.5 = maximum uncertainty.
+    reasoning: optional explanation of the prediction.
     """
 
     event_id: str = ""
     prediction: float = 0.5
+    reasoning: Optional[str] = None
 
 
 class EventGroundTruth(BaseModel):
@@ -99,7 +102,7 @@ def score_prediction(
     if outcome not in (0, 1):
         return BrierScoreResult(
             success=False,
-            failed_reason=f"outcome must be 0 or 1, got {outcome}",
+            failed_reason="outcome must be 0 or 1, got %s" % outcome,
         )
 
     # Clip prediction to [CLIP_EPS, 1 - CLIP_EPS]

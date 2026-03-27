@@ -42,20 +42,13 @@ class TrackerBase:
         Data is stored per-subject (event_id or symbol key).
 
         Args:
-            data: Event data dict, typically containing::
+            data: Event data dict (aligned with Numinous Subnet 6 AgentInput)::
 
                 {
                     "event_id": "numinous-12345",
                     "title": "Will X happen by Y?",
-                    "description": "...",
-                    "cutoff": "2026-03-16T00:00:00Z",
-                    "source": "numinous",
-                    "metadata": {
-                        "market_type": "LLM",
-                        "topics": [...],
-                        "polymarket_market_id": null,
-                        "yes_price": null,
-                    }
+                    "description": "...",       // optional
+                    "cutoff": "2026-03-16T00:00:00Z"  // optional, ISO 8601
                 }
         """
         if isinstance(data, dict):
@@ -102,7 +95,7 @@ class TrackerBase:
         Returns:
             Dict matching ``ForecastOutput`` fields::
 
-                {"event_id": str, "prediction": float}
+                {"event_id": str, "prediction": float, "reasoning": str | None}
         """
         result = self._predict(subject)
         logger.info(

@@ -24,11 +24,11 @@ class TestFeedUpdateSubjectKeying:
 
     def test_stores_data_by_event_id(self):
         tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "title": "Event 1", "yes_price": 0.7})
-        tracker.feed_update({"event_id": "e2", "title": "Event 2", "yes_price": 0.3})
+        tracker.feed_update({"event_id": "e1", "title": "Event 1"})
+        tracker.feed_update({"event_id": "e2", "title": "Event 2"})
 
-        assert tracker._get_data("e1")["yes_price"] == 0.7
-        assert tracker._get_data("e2")["yes_price"] == 0.3
+        assert tracker._get_data("e1")["title"] == "Event 1"
+        assert tracker._get_data("e2")["title"] == "Event 2"
 
     def test_stores_data_by_symbol(self):
         tracker = DummyTracker()
@@ -40,18 +40,17 @@ class TestFeedUpdateSubjectKeying:
 
     def test_updates_same_event(self):
         tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "yes_price": 0.5})
-        tracker.feed_update({"event_id": "e1", "yes_price": 0.8})
+        tracker.feed_update({"event_id": "e1", "title": "First"})
+        tracker.feed_update({"event_id": "e1", "title": "Updated"})
 
-        assert tracker._get_data("e1")["yes_price"] == 0.8
+        assert tracker._get_data("e1")["title"] == "Updated"
 
     def test_default_always_updated(self):
         """_default is always updated to the latest data."""
         tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "yes_price": 0.5})
-        tracker.feed_update({"event_id": "e2", "yes_price": 0.8})
+        tracker.feed_update({"event_id": "e1", "title": "First"})
+        tracker.feed_update({"event_id": "e2", "title": "Second"})
 
-        # _default should be the latest event (e2)
         assert tracker._get_data("_default")["event_id"] == "e2"
 
 
@@ -101,4 +100,4 @@ class TestPredictBase:
     def test_not_implemented_on_base(self):
         tracker = TrackerBase()
         with pytest.raises(NotImplementedError):
-            tracker.predict("test", 60, 15)
+            tracker.predict("test")
