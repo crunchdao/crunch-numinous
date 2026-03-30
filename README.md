@@ -22,7 +22,7 @@ For each event, you receive structured data and must return a **probability betw
     "title": "Will X happen by Y?",
     "description": "...",            # optional
     "cutoff": "2026-03-16T00:00:00Z",# optional, ISO 8601
-    "metadata": {"market_type": "LLM", "topics": ["Finance"]}  # additional metadata fields possible
+    "metadata": {"market_type": "LLM", "topics": ["Finance"]}
 }
 
 # Output: your probability forecast
