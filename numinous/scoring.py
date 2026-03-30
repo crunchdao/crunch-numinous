@@ -14,10 +14,9 @@ report your honest probability estimate.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ── Types ────────────────────────────────────────────────────────────
@@ -27,13 +26,15 @@ class EventInput(BaseModel):
     """What participants receive: a binary event to forecast.
 
     Each event is a yes/no question with an optional resolution deadline.
-    Aligned with Numinous Subnet 6 AgentInput.
+    Aligned with Numinous Subnet 6 validator event_data payload.
     """
 
     event_id: str = ""
+    event_type: str = ""
     title: str = ""
     description: Optional[str] = None
-    cutoff: Optional[datetime] = None
+    cutoff: Optional[str] = None
+    metadata: dict = Field(default_factory=dict)
 
 
 class ForecastOutput(BaseModel):
