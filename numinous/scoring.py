@@ -14,7 +14,6 @@ report your honest probability estimate.
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -34,7 +33,7 @@ class EventInput(BaseModel):
     event_type: str = ""
     title: str = ""
     description: Optional[str] = None
-    cutoff: Optional[datetime] = None
+    cutoff: Optional[str] = None
     metadata: dict = Field(default_factory=dict)
 
 
