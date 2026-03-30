@@ -42,16 +42,16 @@ class TrackerBase:
         Data is stored per-subject (event_id or symbol key).
 
         Args:
-            data: Event data dict (aligned with Numinous Subnet 6 AgentInput)::
+            data: Event data dict (aligned with Numinous Subnet 6 validator payload)::
 
                 {
                     "event_id": "numinous-12345",
+                    "event_type": "llm",
                     "title": "Will X happen by Y?",
                     "description": "...",
-                    "cutoff": "2026-03-16T00:00:00Z"
+                    "cutoff": "2026-03-16T00:00:00Z",
+                    "metadata": {"market_type": "LLM", "topics": [...]}
                 }
-
-            The ``description`` and ``cutoff`` fields are optional.
         """
         if isinstance(data, dict):
             # Use event_id as primary key, fall back to symbol, then _default
