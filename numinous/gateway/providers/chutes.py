@@ -5,6 +5,7 @@ import aiohttp
 from numinous.gateway.models.chutes import ChutesCompletion, ChuteStatus
 from numinous.gateway.rate_limit_log import log_rate_limit_headers
 from numinous.gateway.retry import with_retry
+from numinous.gateway.error_handler import raise_for_status
 
 
 class ChutesClient:
@@ -59,7 +60,7 @@ class ChutesClient:
             async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
                 async with session.post(url, json=body) as response:
                     log_rate_limit_headers("chutes", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.json()
                     return ChutesCompletion.model_validate(data)
 
@@ -70,6 +71,6 @@ class ChutesClient:
 
         async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
             async with session.get(url) as response:
-                response.raise_for_status()
+                await raise_for_status(response)
                 data = await response.json()
                 return [ChuteStatus.model_validate(item) for item in data]

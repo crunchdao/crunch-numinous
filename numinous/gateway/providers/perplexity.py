@@ -5,6 +5,7 @@ import aiohttp
 from numinous.gateway.models.perplexity import PerplexityCompletion
 from numinous.gateway.rate_limit_log import log_rate_limit_headers
 from numinous.gateway.retry import with_retry
+from numinous.gateway.error_handler import raise_for_status
 
 
 class PerplexityClient:
@@ -55,7 +56,7 @@ class PerplexityClient:
             async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
                 async with session.post(url, json=body) as response:
                     log_rate_limit_headers("perplexity", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.json()
                     return PerplexityCompletion.model_validate(data)
 

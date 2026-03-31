@@ -1,6 +1,7 @@
 import aiohttp
 
 from numinous.gateway.models.numinous_indicia import IndiciaSignal
+from numinous.gateway.error_handler import raise_for_status
 
 DEFAULT_BASE_URL = "https://indicia.numinouslabs.io"
 DEFAULT_TIMEOUT = 30.0
@@ -31,6 +32,6 @@ class NuminousIndiciaClient:
         url = f"{self.base_url}{path}"
         async with aiohttp.ClientSession(timeout=self.timeout) as session:
             async with session.get(url, params=params) as response:
-                response.raise_for_status()
+                await raise_for_status(response)
                 data = await response.json()
                 return [IndiciaSignal(**item) for item in data]
