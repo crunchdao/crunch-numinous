@@ -5,6 +5,7 @@ import aiohttp
 
 from numinous.gateway.rate_limit_log import log_rate_limit_headers
 from numinous.gateway.retry import with_retry
+from numinous.gateway.error_handler import raise_for_status
 from numinous.gateway.models.desearch import (
     AISearchResponse,
     WebCrawlResponse,
@@ -65,7 +66,7 @@ class DesearchClient:
             async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
                 async with session.post(url, json=body) as response:
                     log_rate_limit_headers("desearch", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.json()
                     return AISearchResponse.model_validate(data)
 
@@ -91,7 +92,7 @@ class DesearchClient:
             async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
                 async with session.post(url, json=body) as response:
                     log_rate_limit_headers("desearch", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.json()
                     return WebLinksResponse.model_validate(data)
 
@@ -112,7 +113,7 @@ class DesearchClient:
             async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
                 async with session.get(url, params=params) as response:
                     log_rate_limit_headers("desearch", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.json()
                     return WebSearchResponse.model_validate(data)
 
@@ -127,7 +128,7 @@ class DesearchClient:
                     crawl_url, params={"url": url}, headers=self.__headers
                 ) as response:
                     log_rate_limit_headers("desearch", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.text()
                     return WebCrawlResponse(url=url, content=data)
 
@@ -177,7 +178,7 @@ class DesearchClient:
             async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
                 async with session.get(url, params=params) as response:
                     log_rate_limit_headers("desearch", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.json()
                     return [XPostSummary.model_validate(item) for item in data]
 
@@ -190,7 +191,7 @@ class DesearchClient:
             async with aiohttp.ClientSession(timeout=self.__timeout, headers=self.__headers) as session:
                 async with session.get(url, params={"id": post_id}) as response:
                     log_rate_limit_headers("desearch", response)
-                    response.raise_for_status()
+                    await raise_for_status(response)
                     data = await response.json()
                     return XPostResponse.model_validate(data)
 
