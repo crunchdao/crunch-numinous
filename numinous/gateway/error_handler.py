@@ -40,7 +40,10 @@ def handle_provider_errors(provider: str) -> Callable[[Callable], Callable]:
                 else:
                     status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
 
-                logger.error(error_message)
+                logger.error(
+                    error_message,
+                    exc_info=e if status_code >= 500 else None
+                )
 
                 raise HTTPException(
                     status_code=status_code,
