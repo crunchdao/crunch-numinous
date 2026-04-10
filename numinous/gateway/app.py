@@ -2,7 +2,8 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, http_exception_handler, status
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
+from fastapi.exception_handlers import http_exception_handler
 
 from numinous.gateway.rate_limit import RateLimiter
 
