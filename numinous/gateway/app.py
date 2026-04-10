@@ -2,7 +2,7 @@ import logging
 import os
 from pathlib import Path
 
-from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
+from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, http_exception_handler, status
 
 from numinous.gateway.rate_limit import RateLimiter
 
@@ -120,6 +120,21 @@ async def debug_logging_middleware(request: Request, call_next):
         )
         return response
     return await call_next(request)
+
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    logger.error(
+        "%s:%s %s %s -> %d: %s",
+        request.client.host,
+        request.client.port,
+        request.method,
+        request.url.path,
+        exc.status_code,
+        exc.detail,
+    )
+
+    return await http_exception_handler(request, exc)  # still returns the default response
 
 
 @app.middleware("http")
