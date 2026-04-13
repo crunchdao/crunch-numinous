@@ -36,7 +36,13 @@ class TrackerBase:
         self._latest_data_by_subject: dict[str, dict[str, Any]] = {}
         self._model_name = type(self).__name__
 
-    def feed_update(self, data: dict[str, Any]) -> None:
+    def feed_update_and_predict(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Convenience method to feed data and predict in one step."""
+
+        subject = self.feed_update(data)
+        return self.predict(subject)
+
+    def feed_update(self, data: dict[str, Any]) -> str:
         """Receive event data. Override to maintain state.
 
         Data is stored per-subject (event_id or symbol key).
@@ -77,6 +83,8 @@ class TrackerBase:
                 subject_key,
                 title,
             )
+
+        return subject_key
 
     def _get_data(self, subject: str) -> dict[str, Any] | None:
         """Return the latest event data for *subject*.
