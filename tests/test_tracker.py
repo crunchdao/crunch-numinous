@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import pytest
+
 from numinous.tracker import TrackerBase
 
 
@@ -94,6 +95,15 @@ class TestFeedUpdateEdgeCases:
         tracker = DummyTracker()
         tracker.feed_update({"price": 42})
         assert tracker._get_data("anything")["price"] == 42
+
+
+class TestFeedUpdateAndPredict:
+    def test_non_dict_data_stored_as_default(self):
+        tracker = DummyTracker()
+        result = tracker.feed_update_and_predict({"price": 42})
+
+        assert tracker._get_data("_default")["price"] == 42
+        assert result["prediction"] == 0.7
 
 
 class TestPredictBase:
