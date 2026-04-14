@@ -1,14 +1,13 @@
 import logging
 import os
-from pathlib import Path
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request, Response, status
 from fastapi.exception_handlers import http_exception_handler
 
-from numinous.gateway.rate_limit import RateLimiter
-
 from numinous.gateway.cache import cached_gateway_call
 from numinous.gateway.error_handler import handle_provider_errors
+from numinous.gateway.models import numinous_client as models
+from numinous.gateway.models.chutes import ChuteStatus
 from numinous.gateway.providers.chutes import ChutesClient
 from numinous.gateway.providers.desearch import DesearchClient
 from numinous.gateway.providers.numinous_indicia import NuminousIndiciaClient
@@ -16,18 +15,7 @@ from numinous.gateway.providers.openai import OpenAIClient
 from numinous.gateway.providers.openrouter import OpenRouterClient
 from numinous.gateway.providers.perplexity import PerplexityClient
 from numinous.gateway.providers.vericore import VericoreClient
-from numinous.gateway.models import numinous_client as models
-from numinous.gateway.models.chutes import ChuteStatus
-from numinous.gateway.models.chutes import calculate_cost as calculate_chutes_cost
-from numinous.gateway.models.desearch import DesearchEndpoint
-from numinous.gateway.models.desearch import calculate_cost as calculate_desearch_cost
-from numinous.gateway.models.numinous_indicia import (
-    calculate_cost as calculate_numinous_indicia_cost,
-)
-from numinous.gateway.models.openai import calculate_cost as calculate_openai_cost
-from numinous.gateway.models.openrouter import calculate_cost as calculate_openrouter_cost
-from numinous.gateway.models.perplexity import calculate_cost as calculate_perplexity_cost
-from numinous.gateway.models.vericore import calculate_cost as calculate_vericore_cost
+from numinous.gateway.rate_limit import RateLimiter
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +183,8 @@ async def chutes_chat_completion(request: models.ChutesInferenceRequest) -> mode
     )
 
     return models.GatewayChutesCompletion(
-        **result.model_dump(), cost=calculate_chutes_cost(request.model, result)
+        **result.model_dump(),
+        cost=0.0,
     )
 
 
@@ -241,7 +230,7 @@ async def desearch_ai_search(
 
     return models.GatewayDesearchAISearchResponse(
         **result.model_dump(),
-        cost=calculate_desearch_cost(DesearchEndpoint.AI_SEARCH, request.model),
+        cost=0.0,
     )
 
 
@@ -265,7 +254,7 @@ async def desearch_web_links_search(
     )
     return models.GatewayDesearchWebLinksResponse(
         **result.model_dump(),
-        cost=calculate_desearch_cost(DesearchEndpoint.AI_WEB_SEARCH, request.model),
+        cost=0.0,
     )
 
 
@@ -289,7 +278,7 @@ async def desearch_web_search(
     )
     return models.GatewayDesearchWebSearchResponse(
         **result.model_dump(),
-        cost=calculate_desearch_cost(DesearchEndpoint.WEB_SEARCH),
+        cost=0.0,
     )
 
 
@@ -312,7 +301,7 @@ async def desearch_web_crawl(
 
     return models.GatewayDesearchWebCrawlResponse(
         **result.model_dump(),
-        cost=calculate_desearch_cost(DesearchEndpoint.WEB_CRAWL),
+        cost=0.0,
     )
 
 
@@ -351,7 +340,7 @@ async def desearch_x_search(
 
     return models.GatewayDesearchXSearchResponse(
         posts=result,
-        cost=calculate_desearch_cost(DesearchEndpoint.X_SEARCH),
+        cost=0.0,
     )
 
 
@@ -374,7 +363,7 @@ async def desearch_x_post(
 
     return models.GatewayDesearchXPostResponse(
         **result.model_dump(),
-        cost=calculate_desearch_cost(DesearchEndpoint.FETCH_X_POST),
+        cost=0.0,
     )
 
 
@@ -406,7 +395,8 @@ async def openai_create_response(
     )
 
     return models.GatewayOpenAIResponse(
-        **result.model_dump(), cost=calculate_openai_cost(request.model, result)
+        **result.model_dump(),
+        cost=0.0,
     )
 
 
@@ -434,7 +424,8 @@ async def perplexity_chat_completion(request: models.PerplexityInferenceRequest)
     )
 
     return models.GatewayPerplexityCompletion(
-        **result.model_dump(), cost=calculate_perplexity_cost(request.model, result)
+        **result.model_dump(),
+        cost=0.0,
     )
 
 
@@ -458,7 +449,10 @@ async def vericore_calculate_rating(
         generate_preview=request.generate_preview,
     )
 
-    return models.GatewayVericoreResponse(**result.model_dump(), cost=calculate_vericore_cost())
+    return models.GatewayVericoreResponse(
+        **result.model_dump(),
+        cost=0.0,
+    )
 
 
 @gateway_router.post(
@@ -490,7 +484,8 @@ async def openrouter_chat_completion(
     )
 
     return models.GatewayOpenRouterCompletion(
-        **result.model_dump(), cost=calculate_openrouter_cost(result)
+        **result.model_dump(),
+        cost=0.0,
     )
 
 
@@ -507,7 +502,8 @@ async def numinous_indicia_x_osint(
     signals = await client.x_osint(account=request.account, limit=request.limit)
 
     return models.GatewayNuminousIndiciaSignalsResponse(
-        signals=signals, cost=float(calculate_numinous_indicia_cost())
+        signals=signals,
+        cost=0.0,
     )
 
 
@@ -524,7 +520,8 @@ async def numinous_indicia_liveuamap(
     signals = await client.liveuamap(region=request.region, limit=request.limit)
 
     return models.GatewayNuminousIndiciaSignalsResponse(
-        signals=signals, cost=float(calculate_numinous_indicia_cost())
+        signals=signals,
+        cost=0.0,
     )
 
 
