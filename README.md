@@ -22,8 +22,8 @@ For each event, you receive structured data and must return a **probability betw
     "track": "MAIN",
     "event_type": "llm",
     "title": "Will X happen by Y?",
-    "description": "...",            # optional
-    "cutoff": "2026-03-16T00:00:00Z",# optional, ISO 8601
+    "description": "...",               # Optional
+    "cutoff": "2026-03-16T00:00:00Z",   # Optional, ISO 8601
     "metadata": {"market_type": "LLM", "topics": ["Finance"]}
 }
 
@@ -43,16 +43,16 @@ Your final score is a weighted combination of **Brier score** (prediction accura
 
 ### Weight distribution
 
-| Pool | Track | Weight |
-|------|-------|-----------|
-| Global Brier | MAIN | 5% |
-| Geopolitics Brier | MAIN | 5% |
-| Reasoning | MAIN | 25% |
-| Global Brier | SIGNAL | 30% |
-| Geopolitics Brier | SIGNAL | 15% |
-| Reasoning | SIGNAL | 20% |
+| Pool              | Track  | Weight |
+| ----------------- | ------ | ------ |
+| Global Brier      | MAIN   | 5%     |
+| Geopolitics Brier | MAIN   | 5%     |
+| Reasoning         | MAIN   | 25%    |
+| Global Brier      | SIGNAL | 30%    |
+| Geopolitics Brier | SIGNAL | 15%    |
+| Reasoning         | SIGNAL | 20%    |
 
-[Emission weights](docs/emission-weights.png)
+[See emission weights.](docs/emission-weights.png)
 
 ### Brier score
 
@@ -64,10 +64,10 @@ $$
 
 **Lower is better.**
 
-| Score | Meaning |
-|-------|---------|
-| 0.00  | Perfect prediction |
-| 0.25  | Always predicting 0.5 (no information) |
+| Score | Meaning                                       |
+| ----- | --------------------------------------------- |
+| 0.00  | Perfect prediction                            |
+| 0.25  | Always predicting 0.5 (no information)        |
 | 1.00  | Worst possible (predicted 1.0, outcome was 0) |
 
 The Brier score is **strictly proper** — the optimal strategy is to report your honest probability estimate.
@@ -86,9 +86,9 @@ The reasoning is evaluated on 5 criteria: sources used, evidence extracted, comb
 
 Each event specifies a **track** that restricts which resources your model can access:
 
-| Track | Resources | Weight |
-|-------|-----------|--------|
-| **MAIN** | All gateway endpoints | Lower (35% total) |
+| Track      | Resources                                                                                                                                    | Weight             |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------ |
+| **MAIN**   | All gateway endpoints                                                                                                                        | Lower (35% total)  |
 | **SIGNAL** | Restricted subset ([see config](https://github.com/numinouslabs/numinous/blob/main/neurons/validator/sandbox/signing_proxy/track_config.py)) | Higher (65% total) |
 
 The `track` field is included in the event dict passed to `_predict()`. For **SIGNAL** events, do not call unauthorized gateway endpoints — the gateway enforces this and your prediction will fail.
@@ -108,26 +108,32 @@ class MyModel(TrackerBase):
     def _predict(self, event):
         event_id = event.get("event_id", "unknown")
         run_id = event.get("run_id")
+        track = event.get("track")
+
         # Your logic here
         prediction = 0.5
 
-        return {"event_id": event_id, "prediction": prediction, "reasoning": "..."}
+        return {
+            "event_id": event_id,
+            "prediction": prediction,
+            "reasoning": "..."  # Optional, can be None
+        }
 ```
 
 ### Available Event Fields
 
 Inside `_predict()`, the `event` dict contains:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `event_id` | `str` | Unique event identifier |
-| `run_id` | `str` | Run identifier — must be forwarded to gateway calls for cost tracking |
-| `track` | `str` | `"MAIN"` or `"SIGNAL"` — determines which gateway resources are available |
-| `event_type` | `str` | Market type, lowercased (e.g. `"llm"`, `"sports"`, `"crypto"`) |
-| `title` | `str` | The question being asked |
-| `description` | `str \| None` | Additional context and resolution criteria |
-| `cutoff` | `str \| None` | ISO 8601 resolution deadline |
-| `metadata` | `dict` | Event metadata: `market_type`, `topics`, `trigger_name`, `polymarket_market_id` |
+| Field         | Type          | Description                                                                     |
+| ------------- | ------------- | ------------------------------------------------------------------------------- |
+| `event_id`    | `str`         | Unique event identifier                                                         |
+| `run_id`      | `str`         | Run identifier — must be forwarded to gateway calls for cost tracking           |
+| `track`       | `str`         | `"MAIN"` or `"SIGNAL"` — determines which gateway resources are available       |
+| `event_type`  | `str`         | Market type, lowercased (e.g. `"llm"`, `"sports"`, `"crypto"`)                  |
+| `title`       | `str`         | The question being asked                                                        |
+| `description` | `str \| None` | Additional context and resolution criteria                                      |
+| `cutoff`      | `str \| None` | ISO 8601 resolution deadline                                                    |
+| `metadata`    | `dict`        | Event metadata: `market_type`, `topics`, `trigger_name`, `polymarket_market_id` |
 
 ## Example
 
@@ -141,26 +147,66 @@ You will need to provide your own API keys (most providers offer a free tier)
 - **In production**: `SANDBOX_PROXY_URL` is set automatically
 - **Locally**: you use a public gateway, identical to the one used in production
 
-API keys are passed as HTTP headers (e.g. `x-openai-api-key`).
+[The official Numinous documentation contains a list of all available endpoints.](https://github.com/numinouslabs/numinous/blob/main/docs/gateway-guide.md)
 
 ### Use the gateway in your tracker
 
 ```python
-import os, httpx
+import os
+import httpx
 
+# Specify your OpenAI's API Key
+OPENAI_API_KEY = ...
+
+# Get the URL of the Gateway
 GATEWAY_URL = os.environ.get("SANDBOX_PROXY_URL", "https://public-gateway.numinous.competition.crunchdao.com")
 
-resp = httpx.post(
+response = httpx.post(
     f"{GATEWAY_URL}/api/gateway/openai/responses",
     json={
-        "run_id": run_id,  # IMPORTANT: always forward the run_id to the gateway
+        # IMPORTANT: Always forward the `run_id` to the Gateway otherwise the model will fail.
+        "run_id": run_id,
+
         "model": "gpt-5-mini",
-        "input": [{"role": "user", "content": "Will BTC hit 100k?"}],
+        "input": [
+            {
+                "role": "user",
+                "content": "Will BTC hit 100k?"
+            }
+        ],
     },
-    headers={"x-openai-api-key": OPENAI_API_KEY},
-    timeout=30.0,
+    headers={
+        # IMPORTANT: Send the API Key header to the Gateway.
+        "x-openai-api-key": OPENAI_API_KEY,
+    },
+    timeout=30,
 )
 ```
+
+### Authentication
+
+Your model must submit the different providers' API keys that it needs to contact them. For example, if you want to use the OpenAI endpoint, you must include an OpenAI API key and pass it as the header `x-openai-api-key`.
+
+To prevent the wrong API key being sent to the wrong provider, each of them has a unique header name:
+| Provider         | Header Name                        |
+| ---------------- | ---------------------------------- |
+| Chutes           | `x-chutes-api-key`                 |
+| Desearch         | `x-dearch-api-key`                 |
+| Lightning Rod    | `x-lightning-rod-api-key`          |
+| Lunar Crush      | `x-lunar-crush-api-key`            |
+| Numinous Indicia | (No API key required)              |
+| Numinous Signals | `x-numinous-signals-api-key`       |
+| OpenAI           | `x-openai-api-key`                 |
+| OpenRouter       | `x-openrouter-api-key`             |
+| Perplexity       | `x-perplexity-api-key`             |
+| Public Data      | (Name will depend on the service)* |
+| Unusual Whales   | `x-unusual-whales-api-key`         |
+| Vericore         | `x-vericore-api-key`               |
+
+> [!NOTE]
+> The header names for Public Data are always based on the data source you are trying to access. For example, if you want to use `api.stlouisfed.org`, the header will be named `x-fred-api-key`.
+> 
+> You can find a list of all the data sources [here (JSON format)](https://numinous.earth/api/v3/miner/public-data/sources).
 
 ## Links
 
