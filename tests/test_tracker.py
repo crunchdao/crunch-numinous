@@ -1,4 +1,4 @@
-"""Tests for TrackerBase subject-keyed data storage."""
+"""Tests for TrackerBase predict interface."""
 
 from __future__ import annotations
 
@@ -10,104 +10,63 @@ from numinous.tracker import TrackerBase
 class DummyTracker(TrackerBase):
     """Minimal implementation for testing."""
 
-    def _predict(self, subject: str) -> dict:
-        data = self._get_data(subject)
-        if not isinstance(data, dict):
-            return {"event_id": subject, "prediction": 0.5}
+    def _predict(self, event: dict) -> dict:
         return {
-            "event_id": data.get("event_id", subject),
-            "prediction": 0.7 if data else 0.5,
+            "event_id": event.get("event_id", "unknown"),
+            "prediction": 0.7 if event else 0.5,
         }
 
 
-class TestFeedUpdateSubjectKeying:
-    """feed_update() must store data per-subject so multi-event works."""
+class TestPredict:
+    """predict() delegates to _predict() and returns the result."""
 
-    def test_stores_data_by_event_id(self):
+    def test_predict_returns_result(self):
         tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "title": "Event 1"})
-        tracker.feed_update({"event_id": "e2", "title": "Event 2"})
+        result = tracker.predict({"event_id": "e1", "title": "Event 1"})
 
-        assert tracker._get_data("e1")["title"] == "Event 1"
-        assert tracker._get_data("e2")["title"] == "Event 2"
-
-    def test_stores_data_by_symbol(self):
-        tracker = DummyTracker()
-        tracker.feed_update({"symbol": "BTC", "price": 100})
-        tracker.feed_update({"symbol": "ETH", "price": 50})
-
-        assert tracker._get_data("BTC")["price"] == 100
-        assert tracker._get_data("ETH")["price"] == 50
-
-    def test_updates_same_event(self):
-        tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "title": "First"})
-        tracker.feed_update({"event_id": "e1", "title": "Updated"})
-
-        assert tracker._get_data("e1")["title"] == "Updated"
-
-    def test_default_always_updated(self):
-        """_default is always updated to the latest data."""
-        tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "title": "First"})
-        tracker.feed_update({"event_id": "e2", "title": "Second"})
-
-        assert tracker._get_data("_default")["event_id"] == "e2"
-
-
-class TestGetDataFallback:
-    """_get_data() falls back to _default when no exact match."""
-
-    def test_falls_back_to_default_for_unknown_subject(self):
-        """Unknown subject falls back to _default (latest event)."""
-        tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "title": "Latest"})
-
-        # "polymarket" subject not stored directly, but _default has data
-        data = tracker._get_data("polymarket")
-        assert data is not None
-        assert data["event_id"] == "e1"
-
-    def test_exact_match_takes_priority(self):
-        tracker = DummyTracker()
-        tracker.feed_update({"event_id": "e1", "title": "Event 1"})
-        tracker.feed_update({"event_id": "e2", "title": "Event 2"})
-
-        # Exact match for e1 should return e1, not _default (which is e2)
-        assert tracker._get_data("e1")["title"] == "Event 1"
-        assert tracker._get_data("e2")["title"] == "Event 2"
-
-    def test_returns_none_when_empty(self):
-        tracker = DummyTracker()
-        assert tracker._get_data("anything") is None
-
-
-class TestFeedUpdateEdgeCases:
-    """Edge cases for feed_update() input."""
-
-    def test_non_dict_data_stored_as_default(self):
-        tracker = DummyTracker()
-        tracker.feed_update("not a dict")  # type: ignore[arg-type]
-        # Should not crash; stored under _default
-        assert tracker._get_data("anything") == "not a dict"
-
-    def test_no_event_id_no_symbol_stored_as_default(self):
-        tracker = DummyTracker()
-        tracker.feed_update({"price": 42})
-        assert tracker._get_data("anything")["price"] == 42
-
-
-class TestFeedUpdateAndPredict:
-    def test_non_dict_data_stored_as_default(self):
-        tracker = DummyTracker()
-        result = tracker.feed_update_and_predict({"price": 42})
-
-        assert tracker._get_data("_default")["price"] == 42
+        assert result["event_id"] == "e1"
         assert result["prediction"] == 0.7
+
+    def test_predict_with_empty_event(self):
+        tracker = DummyTracker()
+        result = tracker.predict({})
+
+        assert result["event_id"] == "unknown"
+        assert result["prediction"] == 0.5
+
+    def test_predict_passes_event_to_implementation(self):
+        """The event dict is forwarded as-is to _predict."""
+        received = {}
+
+        class CapturingTracker(TrackerBase):
+            def _predict(self, event: dict) -> dict:
+                received.update(event)
+                return {"event_id": event.get("event_id", "x"), "prediction": 0.5}
+
+        tracker = CapturingTracker()
+        tracker.predict({"event_id": "e1", "symbol": "BTC", "price": 100})
+
+        assert received["event_id"] == "e1"
+        assert received["symbol"] == "BTC"
+        assert received["price"] == 100
+
+    def test_predict_multiple_events(self):
+        tracker = DummyTracker()
+        r1 = tracker.predict({"event_id": "e1", "title": "Event 1"})
+        r2 = tracker.predict({"event_id": "e2", "title": "Event 2"})
+
+        assert r1["event_id"] == "e1"
+        assert r2["event_id"] == "e2"
 
 
 class TestPredictBase:
-    def test_not_implemented_on_base(self):
-        tracker = TrackerBase()
-        with pytest.raises(NotImplementedError):
-            tracker.predict("test")
+    def test_cannot_instantiate_abstract(self):
+        with pytest.raises(TypeError):
+            TrackerBase()
+
+    def test_subclass_must_implement_predict(self):
+        class IncompleteTracker(TrackerBase):
+            pass
+
+        with pytest.raises(TypeError):
+            IncompleteTracker()
