@@ -15,9 +15,11 @@ pip install crunch-numinous
 For each event, you receive structured data and must return a **probability between 0.0 and 1.0** that the event resolves "Yes":
 
 ```python
-# Input: event data pushed to your model (aligned with Numinous Subnet 6 validator payload)
+# Input: event data pushed to your model (aligned with Numinous Subnet 6)
 {
     "event_id": "numinous-12345",
+    "run_id": "run-abc",
+    "track": "MAIN",
     "event_type": "llm",
     "title": "Will X happen by Y?",
     "description": "...",            # optional
@@ -37,7 +39,24 @@ Predictions are clipped to **[0.01, 0.99]** during scoring.
 
 ## Scoring
 
-Predictions are evaluated using the **[Brier score](https://en.wikipedia.org/wiki/Brier_score)**:
+Your final score is a weighted combination of **Brier score** (prediction accuracy) and **reasoning quality**. The weights depend on the track and event category.
+
+### Weight distribution
+
+| Pool | Track | Weight |
+|------|-------|-----------|
+| Global Brier | MAIN | 5% |
+| Geopolitics Brier | MAIN | 5% |
+| Reasoning | MAIN | 25% |
+| Global Brier | SIGNAL | 30% |
+| Geopolitics Brier | SIGNAL | 15% |
+| Reasoning | SIGNAL | 20% |
+
+[Emission weights](docs/emission-weights.png)
+
+### Brier score
+
+Prediction accuracy is evaluated using the **[Brier score](https://en.wikipedia.org/wiki/Brier_score)**:
 
 $$
 \text{Brier} = (\text{prediction} - \text{outcome})^2
@@ -55,11 +74,28 @@ The Brier score is **strictly proper** — the optimal strategy is to report you
 
 Missing predictions are imputed as 0.5 → scored at 0.25.
 
-Leaderboard ranking is based on **`brier_72h`** — the 72-hour rolling average Brier score (ascending, lower is better).
+Geopolitics events have a separate Brier pool because their resolution dates are often far away — Numinous requests intermediate predictions and uses Polymarket probabilities to score them.
+
+### Reasoning scoring
+
+The `reasoning` field returned by your model is **scored by an LLM** and has significant weight in the final score (25% on MAIN, 20% on SIGNAL). Models that simply relay market probabilities without genuine reasoning will be penalized.
+
+The reasoning is evaluated on 5 criteria: sources used, evidence extracted, combination & weighting, uncertainties / counterpoints, and mapping to final probabilities. See the [full evaluation prompt](docs/reasoning-evaluation-prompt.md) for details.
+
+### Tracks (MAIN / SIGNAL)
+
+Each event specifies a **track** that restricts which resources your model can access:
+
+| Track | Resources | Weight |
+|-------|-----------|--------|
+| **MAIN** | All gateway endpoints | Lower (35% total) |
+| **SIGNAL** | Restricted subset ([see config](https://github.com/numinouslabs/numinous/blob/main/neurons/validator/sandbox/signing_proxy/track_config.py)) | Higher (65% total) |
+
+The `track` field is included in the event dict passed to `_predict()`. For **SIGNAL** events, do not call unauthorized gateway endpoints — the gateway enforces this and your prediction will fail.
 
 ## Create Your Tracker
 
-A **tracker** is a model that receives event data and returns probability forecasts. It operates incrementally: events are pushed via `feed_update()`, and predictions are requested via `predict()`.
+A **tracker** is a model that receives event data and returns probability forecasts. The `predict()` method receives the full event dict directly.
 
 **To participate, subclass `TrackerBase` and implement `_predict()`:**
 
@@ -69,30 +105,24 @@ from numinous.tracker import TrackerBase
 
 class MyModel(TrackerBase):
 
-    def _predict(self, subject):
-        data = self._get_data(subject)
-        if not isinstance(data, dict):
-            return {"event_id": subject, "prediction": 0.5}
-
-        event_id = data.get("event_id", subject)
+    def _predict(self, event):
+        event_id = event.get("event_id", "unknown")
+        run_id = event.get("run_id")
         # Your logic here
         prediction = 0.5
 
-        return {"event_id": event_id, "prediction": prediction}
+        return {"event_id": event_id, "prediction": prediction, "reasoning": "..."}
 ```
-
-### How It Works
-
-1. **`feed_update(data)`** is called with new event data — stored automatically by `TrackerBase`
-2. **`predict(subject, ...)`** is called — use `self._get_data(subject)` to access the latest event data
 
 ### Available Event Fields
 
-Inside `_predict()`, `self._get_data(subject)` gives you:
+Inside `_predict()`, the `event` dict contains:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `event_id` | `str` | Unique event identifier |
+| `run_id` | `str` | Run identifier — must be forwarded to gateway calls for cost tracking |
+| `track` | `str` | `"MAIN"` or `"SIGNAL"` — determines which gateway resources are available |
 | `event_type` | `str` | Market type, lowercased (e.g. `"llm"`, `"sports"`, `"crypto"`) |
 | `title` | `str` | The question being asked |
 | `description` | `str \| None` | Additional context and resolution criteria |
@@ -105,62 +135,32 @@ See the [quickstart notebook](numinous/examples/quickstart.ipynb) to get started
 
 ## Gateway
 
-Your model has **no direct internet access** in production. All external calls (LLMs, search, OSINT...) must go through the **gateway**, a local proxy to multiple AI providers.
+Your model has **no direct internet access** in production. All external calls (LLMs, search, OSINT...) go through the **gateway**.
+You will need to provide your own API keys (most providers offer a free tier)
 
-- **In production**: `SANDBOX_PROXY_URL` is set automatically and points to the Crunch gateway — **API costs are covered by Crunch**.
-- **Locally**: you run the gateway yourself with your own API keys. Most providers offer a free tier.
+- **In production**: `SANDBOX_PROXY_URL` is set automatically
+- **Locally**: you use a public gateway, identical to the one used in production
 
-### Start the gateway locally
-
-```bash
-crunch-numinous gateway restart
-```
-
-### API keys
-
-API keys are **only needed for local testing** — do not include them in the notebook you submit.
-
-You can set them in two ways:
-
-**Option 1** — Environment variables (e.g. in a notebook cell you won't submit):
-```python
-import os
-os.environ["OPENAI_API_KEY"] = "sk-..."
-os.environ["OPENROUTER_API_KEY"] = "sk-or-..."
-```
-
-**Option 2** — A persistent env file that you never submit:
-```
-# ~/.crunch-numinous-gateway.env
-OPENAI_API_KEY=sk-...
-OPENROUTER_API_KEY=sk-or-...
-CHUTES_API_KEY=...
-```
-
-You can also create it interactively:
-```bash
-crunch-numinous gateway configure
-```
+API keys are passed as HTTP headers (e.g. `x-openai-api-key`).
 
 ### Use the gateway in your tracker
 
-In your model, call the gateway via `SANDBOX_PROXY_URL`:
 ```python
-import os, httpx, uuid
+import os, httpx
 
-GATEWAY_URL = os.environ.get("SANDBOX_PROXY_URL", "http://localhost:8090")
+GATEWAY_URL = os.environ.get("SANDBOX_PROXY_URL", "https://public-gateway.numinous.competition.crunchdao.com")
 
 resp = httpx.post(
     f"{GATEWAY_URL}/api/gateway/openai/responses",
     json={
-        "model": "gpt-5-nano",
+        "run_id": run_id,  # IMPORTANT: always forward the run_id to the gateway
+        "model": "gpt-5-mini",
         "input": [{"role": "user", "content": "Will BTC hit 100k?"}],
     },
+    headers={"x-openai-api-key": OPENAI_API_KEY},
     timeout=30.0,
 )
 ```
-
-See the [API Reference](numinous/gateway/API_REFERENCE.md) for all available endpoints and providers.
 
 ## Links
 
