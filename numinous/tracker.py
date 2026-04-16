@@ -14,6 +14,7 @@ during scoring.
 from __future__ import annotations
 
 import logging
+from threading import Lock
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,17 @@ class TrackerBase:
     def __init__(self) -> None:
         self._latest_data_by_subject: dict[str, dict[str, Any]] = {}
         self._model_name = type(self).__name__
+
+        self._run_id = None
+        self._run_id_lock = Lock()
+
+    @property
+    def run_id(self) -> str:
+        value = self._run_id
+        if value is None:
+            raise ValueError("run_id is not set.")
+
+        return value
 
     def feed_update_and_predict(self, data: dict[str, Any]) -> dict[str, Any]:
         """Convenience method to feed data and predict in one step."""
@@ -59,30 +71,29 @@ class TrackerBase:
                     "metadata": {"market_type": "LLM", "topics": [...]}
                 }
         """
-        if isinstance(data, dict):
-            # Use event_id as primary key, fall back to symbol, then _default
-            subject_key = (
-                data.get("event_id")
-                or data.get("symbol")
-                or "_default"
-            )
-        else:
-            subject_key = "_default"
+
+        if not isinstance(data, dict):
+            raise ValueError(f"Expected event to be a dict, got {type(data)}")
+
+        subject_key = (
+            data.get("event_id")
+            or data.get("symbol")
+            or "_default"
+        )
 
         self._latest_data_by_subject[subject_key] = data
+
         # Always update _default so predict() can find the latest event
         # regardless of the scope subject passed by the coordinator.
         self._latest_data_by_subject["_default"] = data
 
         # Log feed summary
-        if isinstance(data, dict):
-            title = data.get("title", "")[:60]
-            logger.info(
-                "[%s] feed_update event=%s title=%s",
-                self._model_name,
-                subject_key,
-                title,
-            )
+        logger.info(
+            "[%s] feed_update event=%s title=%s",
+            self._model_name,
+            subject_key,
+            data.get("title", "")[:60],
+        )
 
         return subject_key
 
@@ -91,9 +102,10 @@ class TrackerBase:
 
         Falls back to ``"_default"`` when no exact match exists.
         """
-        return self._latest_data_by_subject.get(
-            subject,
-            self._latest_data_by_subject.get("_default"),
+
+        return (
+            self._latest_data_by_subject.get(subject)
+            or self._latest_data_by_subject.get("_default")
         )
 
     def predict(self, subject: str) -> dict[str, Any]:
@@ -107,13 +119,25 @@ class TrackerBase:
 
                 {"event_id": str, "prediction": float, "reasoning": str | None}
         """
-        result = self._predict(subject)
-        logger.info(
-            "[%s] predict subject=%s → %s",
-            self._model_name,
-            subject,
-            result,
-        )
+
+        event = self._get_data(subject)
+        if event is None:
+            raise ValueError(f"No data found for subject '{subject}'")
+
+        # Update the current run_id from the event data, if available.
+        with self._run_id_lock:
+            self._run_id = event.get("run_id", self._run_id)
+
+            result = self._predict(subject)
+            logger.info(
+                "[%s] predict subject=%s → %s",
+                self._model_name,
+                subject,
+                result,
+            )
+
+            self._run_id = None
+
         return result
 
     def _predict(self, subject: str) -> dict[str, Any]:
