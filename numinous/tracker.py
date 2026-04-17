@@ -47,11 +47,11 @@ class TrackerBase(ABC):
         # Update the current run_id from the event data, if available.
         result = self._predict(event)
 
-        event_id = result.get("event_id", "unknown")
         logger.info(
-            "Predicted event: %s: %s",
-            event_id,
-            result,
+            "Predicted event: %s: %s (%s)",
+            result.get("event_id", "unknown"),
+            result.get("prediction", "???"),
+            result.get("reasoning", "(no reasoning)"),
         )
 
         return result
