@@ -39,20 +39,15 @@ Predictions are clipped to **[0.01, 0.99]** during scoring.
 
 ## Scoring
 
-Your final score is a weighted combination of **Brier score** (prediction accuracy) and **reasoning quality**. The weights depend on the track and event category.
+Your final score is a weighted combination of **Brier score** (prediction accuracy) and **reasoning quality**.
 
-### Weight distribution
+| Pool              | Track  | Weight | Max Events | Min Events | Top Miner Min Events |
+| ----------------- | ------ | ------ | ---------- | ---------- | -------------------- |
+| Global Brier      | SIGNAL | 60%    | 600        | 200        | 300                  |
+| Geopolitics Brier | SIGNAL | 25%    | 200        | 100        |                      |
+| Reasoning         | SIGNAL | 10%    | 200        | 100        |                      |
 
-| Pool              | Track  | Weight |
-| ----------------- | ------ | ------ |
-| Global Brier      | MAIN   | 5%     |
-| Geopolitics Brier | MAIN   | 5%     |
-| Reasoning         | MAIN   | 25%    |
-| Global Brier      | SIGNAL | 30%    |
-| Geopolitics Brier | SIGNAL | 15%    |
-| Reasoning         | SIGNAL | 20%    |
-
-[See emission weights.](docs/emission-weights.png)
+Emissions are also using the same weights.
 
 ### Brier score
 
