@@ -77,7 +77,7 @@ The `reasoning` field returned by your model is **scored by an LLM** and has sig
 
 The reasoning is evaluated on 5 criteria: sources used, evidence extracted, combination & weighting, uncertainties / counterpoints, and mapping to final probabilities. See the [full evaluation prompt](docs/reasoning-evaluation-prompt.md) for details.
 
-### Tracks (MAIN / SIGNAL)
+### Tracks
 
 Each event specifies a **track** that restricts which resources your model can access:
 
@@ -87,6 +87,9 @@ Each event specifies a **track** that restricts which resources your model can a
 | **SIGNAL** | Restricted subset ([see config](https://github.com/numinouslabs/numinous/blob/main/neurons/validator/sandbox/signing_proxy/track_config.py)) | Higher (65% total) |
 
 The `track` field is included in the event dict passed to `_predict()`. For **SIGNAL** events, do not call unauthorized gateway endpoints — the gateway enforces this and your prediction will fail.
+
+> [!NOTE]
+> Only the Signal Track is available on the CrunchDAO Platform.
 
 ## Create Your Tracker
 
@@ -123,7 +126,6 @@ Inside `_predict()`, the `event` dict contains:
 | ------------- | ------------- | ------------------------------------------------------------------------------- |
 | `event_id`    | `str`         | Unique event identifier                                                         |
 | `run_id`      | `str`         | Run identifier — must be forwarded to gateway calls for cost tracking           |
-| `track`       | `str`         | `"MAIN"` or `"SIGNAL"` — determines which gateway resources are available       |
 | `event_type`  | `str`         | Market type, lowercased (e.g. `"llm"`, `"sports"`, `"crypto"`)                  |
 | `title`       | `str`         | The question being asked                                                        |
 | `description` | `str \| None` | Additional context and resolution criteria                                      |
