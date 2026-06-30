@@ -47,10 +47,17 @@ class TrackerBase(ABC):
         # Update the current run_id from the event data, if available.
         result = self._predict(event)
 
+        if not isinstance(result, dict):
+            raise ValueError(f"`_predict()` method must return a dict, but got {type(result).__name__} ({result!r}) instead")
+
+        prediction = result.get("prediction")
+        if prediction is None or not isinstance(prediction, (float, int)):
+            raise ValueError(f"prediction must be a float, but got {type(prediction).__name__} ({prediction!r}) instead")
+
         logger.info(
             "Predicted event: %s: %s (%s)",
             result.get("event_id", "unknown"),
-            result.get("prediction", "???"),
+            prediction,
             result.get("reasoning", "(no reasoning)"),
         )
 

@@ -1,6 +1,7 @@
 """Tests for TrackerBase predict interface."""
 
 from __future__ import annotations
+from typing import Any
 
 import pytest
 
@@ -15,6 +16,18 @@ class DummyTracker(TrackerBase):
             "event_id": event.get("event_id", "unknown"),
             "prediction": 0.7 if event else 0.5,
         }
+
+
+class MockTracker(TrackerBase):
+    """Minimal implementation for testing."""
+
+    def __init__(self):
+        super().__init__()
+
+        self.next_prediction: Any = None
+
+    def _predict(self, event: dict) -> dict:
+        return self.next_prediction # pyright: ignore[reportReturnType]
 
 
 class TestPredict:
@@ -62,11 +75,34 @@ class TestPredict:
 class TestPredictBase:
     def test_cannot_instantiate_abstract(self):
         with pytest.raises(TypeError):
-            TrackerBase()
+            TrackerBase() # pyright: ignore[reportAbstractUsage]
 
     def test_subclass_must_implement_predict(self):
         class IncompleteTracker(TrackerBase):
             pass
 
         with pytest.raises(TypeError):
-            IncompleteTracker()
+            IncompleteTracker() # pyright: ignore[reportAbstractUsage]
+
+
+class TestWrongPrediction:
+    def test_return_none(self):
+        tracker = MockTracker()
+        tracker.next_prediction = None
+
+        with pytest.raises(ValueError, match="method must return a dict"):
+            tracker.predict({})
+
+    def test_return_non_dict(self):
+        tracker = MockTracker()
+        tracker.next_prediction = "not a dict"
+
+        with pytest.raises(ValueError, match="method must return a dict"):
+            tracker.predict({})
+
+    def test_return_non_float_prediction(self):
+        tracker = MockTracker()
+        tracker.next_prediction = {"event_id": "e1", "prediction": "not a float"}
+
+        with pytest.raises(ValueError, match="prediction must be a float, but got str"):
+            tracker.predict({})
