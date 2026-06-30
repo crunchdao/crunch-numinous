@@ -10,18 +10,12 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "pydantic",
-    "click",
-    "rich",
-    "fastapi",
-    "uvicorn",
-    "aiohttp",
-    "python-dotenv",
-    "httpx",
-    "ipykernel",
-]
 
-[project.scripts]
-crunch-numinous = "numinous.cli:main"
+    # not directly used, but kept for the notebook
+    "rich",
+    "aiohttp",
+    "httpx",
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
